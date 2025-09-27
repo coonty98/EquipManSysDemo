@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <title>User Management</title>
+        <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+        <meta name="csrf-token" content="{{ csrf_token() }}">
+    </head>
+    <body>
+        <div class="header">
+            <div class="img">
+                <img src="{{ url_for('static', filename='images/demo_logo.jpg') }}" class="logo-image">
+            </div>
+            <div class="header2">
+                
+                <h1>Equipment Management System</h1>
+            
+                <ul>
+                    <li><a class="{% if active_page == 'index' %}active{% endif %}" href="{{ url_for('index') }}">Lab Home</a></li>
+                {% if session.access_level in ['Administrator', 'Manager', 'Local Audit', 'Global Audit'] %}
+                    <li><a class="{% if active_page == 'manage' %}active{% endif %}" href="{{ url_for('manage') }}">Equipment Management</a></li>
+                    <li><a class="{% if active_page == 'users' %}active{% endif %}" href="{{ url_for('users') }}">User Management</a></li>
+                {% endif %}
+                    <li><a class="{% if active_page == 'models' %}active{% endif %}" href="{{ url_for('models') }}">Equipment Models</a></li>
+                    <li><a class="{% if active_page == 'reports' %}active{% endif %}" href="{{ url_for('reports') }}">Reporting</a></li>
+                    <li><a href="{{ url_for('logout') }}">Logout</a></li>
+                </ul>
+            </div>
+        </div>
+        <h1>Users</h1>
+        <select id="lablist">
+            <option value="All Labs">All Labs</option>
+            {% for lab in lablist %}
+            <option value="{{ lab }}">{{ lab }}</option>
+            {% endfor %}
+        </select>
+        <input type="text" id="user-search" placeholder="Search Users...">
+        <button type="button"
+            class="open-newuser-modal"
+            {% if session.access_level not in ['Administrator', 'Manager'] %}disabled{% endif %}>
+            New User
+        </button>
+        <label for="inactive-user-toggle">Toggle disabled users</label>
+        <input type="checkbox" name="inactive-user-toggle" id="inactive-user-toggle" {% if inactiveusertoggle == 'True' %}checked{% endif %}>
+        <table id="users-table" class="styled-table">
+            <thead>
+                    <tr>
+                        <th>User</th>
+                        <th>Access Level</th>
+                        <th>Name</th>
+                        <th>Primary Lab</th>
+                        <th>Last Login</th>
+                        <th>Status</th>
+                        <th></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    
+                </tbody>
+        </table>
+        <ul id="user-list"></ul>
+        <div id="modify-user-modal" class="modal hidden">
+            <div class="modal-content">
+                <span class="close" id="close-modal-user">&times;</span>
+                <form id="modify-user-form" class="needs-confirmation" method="POST" action="/modify_user">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <input type="hidden" name="token" id="modal-token-user">
+                <input type="hidden" name="hidden_username" id="modal-hidden-username">
+                <label for="modal-username">Username: </label>
+                <input type="text" name="new_username" id="modal-username"><br>
+                <label for="modal-firstname">First Name: </label>
+                <input type="text" name="new_firstname" id="modal-firstname"><br>
+                <label for="modal-lastname">Last Name: </label>
+                <input type="text" name="new_lastname" id="modal-lastname"><br>
+                <label for="modal-password">New Password: </label>
+                <input type="password" name="new_password" id="modal-password"><br>
+                <label for="req-pwd-chg">Require Password Change:</label>
+                <input type="checkbox" id="req-pwd-chg" name="req-pwd-chg"><br>
+                <label for="modal-accesslevel">Access Level: </label>
+                <select id="modal-accesslevel" name="new_accesslevel">
+                    {% for accesslevel in access_list %}
+                        <option value="{{ accesslevel }}">{{ accesslevel }}</option>
+                    {% endfor %}
+                </select><br>
+                <label for="modal-primarylab">Primary Lab: </label>
+                <select id="modal-primarylab" name="new_primarylab">
+                    {% for lab in lablist %}
+                        {% if lab != PrimaryLab %}
+                            <option value="{{ lab }}">{{ lab }}</option>
+                        {% endif %}
+                    {% endfor %}
+                </select><br>
+                <label for="modal-userstatus">Status: </label>
+                <select id="modal-userstatus" name="new_userstatus">
+                    {% for userstatus in userstatuslist %}
+                        <option value="{{ userstatus }}">{{ userstatus }}</option>
+                    {% endfor %}
+                </select><br>
+                <button type="submit">Save</button>
+                <button type="button" id="cancel-modal-user">Cancel</button>
+                </form>
+                <div class="tab-content">
+                    <h3>Lab Access</h3>
+                    <table id="lab-access-table">
+                        <thead>
+                            <tr>
+                                <th>Lab</th>
+                                <th>Access Level</th>
+                            </tr>
+                        </thead>
+                        <tbody id="lab-access-tbody">
+                            <!-- Will be filled dynamically -->
+                        </tbody>
+                    </table>
+                    <button type="button" id="save-lab-access">Save Lab Access</button>
+                    <span id="lab-access-success-message" class="success-message"></span>
+                </div>
+            </div>
+        </div>
+        <div id="new-user-modal" class="modal hidden">
+            <div class="modal-content">
+                <span class="close" id="close-modal-newuser">&times;</span>
+                <form id="new-user-form" class="needs-confirmation" method="POST" action="/new_user">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <input type="hidden" name="token" id="modal-token-newuser">
+                <label for="modal-username-newuser">Username: </label>
+                <input type="text" name="new_username" id="modal-username-newuser" required><br>
+                <label for="modal-firstname-newuser">First Name: </label>
+                <input type="text" name="new_firstname" id="modal-firstname-newuser" required><br>
+                <label for="modal-lastname-newuser">Last Name: </label>
+                <input type="text" name="new_lastname" id="modal-lastname-newuser" required><br>
+                <label for="modal-password-newuser">New Password: </label>
+                <input type="password" name="new_password" id="modal-password-newuser" required><br>
+                <label for="modal-accesslevel-newuser">Access Level: </label>
+                <select id="modal-accesslevel-newuser" name="new_accesslevel">
+                    <option value="default"></option>
+                    {% for accesslevel in access_list %}
+                        <option value="{{ accesslevel }}">{{ accesslevel }}</option>
+                    {% endfor %}
+                </select><br>
+                <label for="modal-primarylab-newuser">Primary Lab: </label>
+                <select id="modal-primarylab-newuser" name="new_primarylab">
+                    <option value="default"></option>
+                    {% for lab in lablist %}
+                        {% if lab != PrimaryLab %}
+                            <option value="{{ lab }}">{{ lab }}</option>
+                        {% endif %}
+                    {% endfor %}
+                </select><br>
+                <button type="submit">Save</button>
+                <button type="button" id="cancel-modal-newuser">Cancel</button>
+                </form>
+            </div>
+        </div>
+        <div id="confirmation-modal" class="modal hidden">
+            <div class="modal-content">
+                <h2>Confirm Submission</h2>
+                <p id="confirmation-message">Are you sure you want to submit this form?</p>
+                <div class="modal-buttons">
+                <button id="confirm-submit" class="btn-primary">Yes, Submit</button>
+                <button id="cancel-submit" class="btn-secondary">Cancel</button>
+                </div>
+            </div>
+        </div>
+        <div id="user-data"
+            data-access-level="{{ access_level }}"
+            data-primary-lab="{{ PrimaryLab }}"
+            data-timeout-seconds="{{ sessionTimeout_sec }}"
+            class="hidden">
+        </div>
+        <script src="{{ url_for('static', filename='script.js') }}"></script>
+    </body>
+</html>

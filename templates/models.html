@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <title>Equipment Models</title>
+        <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+        <meta name="csrf-token" content="{{ csrf_token() }}">
+    </head>
+    <body>
+        <div class="header">
+            <div class="img">
+                <img src="{{ url_for('static', filename='images/demo_logo.jpg') }}" class="logo-image">
+            </div>
+            <div class="header2">
+                
+                <h1>Equipment Management System</h1>
+            
+                <ul>
+                    <li><a class="{% if active_page == 'index' %}active{% endif %}" href="{{ url_for('index') }}">Lab Home</a></li>
+                {% if session.access_level in ['Administrator', 'Manager', 'Local Audit', 'Global Audit'] %}
+                    <li><a class="{% if active_page == 'manage' %}active{% endif %}" href="{{ url_for('manage') }}">Equipment Management</a></li>
+                    <li><a class="{% if active_page == 'users' %}active{% endif %}" href="{{ url_for('users') }}">User Management</a></li>
+                {% endif %}
+                    <li><a class="{% if active_page == 'models' %}active{% endif %}" href="{{ url_for('models') }}">Equipment Models</a></li>
+                    <li><a class="{% if active_page == 'reports' %}active{% endif %}" href="{{ url_for('reports') }}">Reporting</a></li>
+                    <li><a href="{{ url_for('logout') }}">Logout</a></li>
+                </ul>
+            </div>
+        </div>
+        <div class="equipmodels">
+            <h1>Equipment Models</h1>
+            <button type="button"
+                class="open-addequipmodel-modal"
+                {% if session.access_level != 'Administrator' %}disabled{% endif %}>
+                Add Model
+            </button>
+            <label for="disabled-model-toggle">Toggle disabled models</label>
+            <input type="checkbox" name="disabled-model-toggle" id="disabled-model-toggle" {% if disabledmodeltoggle == 'True' %}checked{% endif %}>
+            <table id="models-table" class="styled-table">
+                <thead>
+                    <tr>
+                        <th>Model</th>
+                        <th>Manufacturer</th>
+                        <th>Class</th>
+                        <th>D</th>
+                        <th>W</th>
+                        <th>M</th>
+                        <th>Q</th>
+                        <th>A</th>
+                        <th></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    
+                </tbody>
+            </table>
+        </div>
+        <div id="add-model-modal" class="modal hidden">
+            <div class="modal-content">
+                <span class="close" id="close-modal-addequipmodel">&times;</span>
+                <form id="add-model-form" class="needs-confirmation" method="POST" action="/add_model">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <input type="hidden" name="token" id="modal-token-addequipmodel">
+                <label for="modal-model-addequipmodel">Model:</label>
+                <input type="text" name="new_model" id="modal-model-addequipmodel" required><br>
+                <label for="modal-manufacturer-addequipmodel">Manufacturer:</label>
+                <input type="text" name="new_manufacturer" id="modal-manufacturer-addequipmodel" required><br>
+                <label for="modal-equipmentclass-addequipmodel">Class:</label>
+                <select name="new_equipmentclass" id="modal-equipmentclass-addequipmodel">
+                    <option value="default"></option>
+                    {% for class in classlist %}
+                    <option value="{{ class }}">{{ class }}</option>
+                    {% endfor %}
+                </select><br>
+                <button type="submit">Save</button>
+                <button type="button" id="cancel-modal-addequipmodel">Cancel</button>
+                </form>
+            </div>
+        </div>
+        <div id="confirmation-modal" class="modal hidden">
+            <div class="modal-content">
+                <h2>Confirm Submission</h2>
+                <p id="confirmation-message">Are you sure you want to submit this form?</p>
+                <div class="modal-buttons">
+                <button id="confirm-submit" class="btn-primary">Yes, Submit</button>
+                <button id="cancel-submit" class="btn-secondary">Cancel</button>
+                </div>
+            </div>
+        </div>
+        <div id="user-data"
+            data-timeout-seconds="{{ sessionTimeout_sec }}"
+            class="hidden">
+        </div>
+        <script src="{{ url_for('static', filename='script.js') }}"></script>
+    </body>
+</html>

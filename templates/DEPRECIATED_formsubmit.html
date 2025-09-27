@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <title>Form Submission</title>
+        <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    </head>
+    <body>
+        <div class="header">
+            <div class="img">
+                <img src="https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcRCTwYHO5NTJzPxmJLz4eSCqcJm8f5epko3ow&s" width="100px" height="100px">
+            </div>
+            <div class="header2">
+                
+                <h1>Equipment Management System</h1>
+            
+                <ul>
+                    <li><a class="{% if active_page == 'index' %}active{% endif %}" href="{{ url_for('index') }}">Lab Home</a></li>
+                {% if session.access_level in ['Administrator', 'Manager'] %}
+                    <li><a class="{% if active_page == 'manage' %}active{% endif %}" href="{{ url_for('manage') }}">Equipment Management</a></li>
+                    <li><a class="{% if active_page == 'users' %}active{% endif %}" href="{{ url_for('users') }}">User Management</a></li>
+                {% endif %}
+                {% if session.access_level == 'Administrator' %}
+                    <li><a class="{% if active_page == 'models' %}active{% endif %}" href="{{ url_for('models') }}">Equipment Models</a></li>
+                {% endif %}
+                    <li><a class="{% if active_page == 'reports' %}active{% endif %}" href="{{ url_for('reports') }}">Reporting</a></li>
+                    <li><a href="{{ url_for('logout') }}">Logout</a></li>
+                </ul>
+            </div>
+        </div>
+        <h2>Add Equipment</h2>     
+        <form method="POST" action="/formsubmit?token={{ token }}">
+            <input type="hidden" name="record_num" value="{{ record_num }}">
+            <input type="hidden" name="model" value="{{ model }}">
+            <input type="hidden" name="completedby" value="{{ username }}">
+            {% for row in rows %}
+                <label for="{{ row[3] }}">{{ row[4] }}:</label>
+                <input type="checkbox" id="{{ row[3] }}" name="{{ row[3] }}" required><br>
+                <!-- <label for="model">Model:</label>
+                <input type="text" id="model" name="model" required><br>
+                <button type="submit">Add</button> -->
+            {% endfor %}
+            <button type="submit">Submit</button>
+        </form>
+    </body>
+</html>

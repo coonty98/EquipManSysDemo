@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <title>Modify Equipment</title>
+        <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    </head>
+    <body>
+        <div class="header">
+            <div class="img">
+                <img src="https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcRCTwYHO5NTJzPxmJLz4eSCqcJm8f5epko3ow&s" width="100px" height="100px">
+            </div>
+            <div class="header2">
+                
+                <h1>Equipment Management System</h1>
+            
+                <ul>
+                    <li><a class="{% if active_page == 'index' %}active{% endif %}" href="{{ url_for('index') }}">Lab Home</a></li>
+                {% if session.access_level in ['Administrator', 'Manager'] %}
+                    <li><a class="{% if active_page == 'manage' %}active{% endif %}" href="{{ url_for('manage') }}">Equipment Management</a></li>
+                    <li><a class="{% if active_page == 'users' %}active{% endif %}" href="{{ url_for('users') }}">User Management</a></li>
+                {% endif %}
+                {% if session.access_level == 'Administrator' %}
+                    <li><a class="{% if active_page == 'models' %}active{% endif %}" href="{{ url_for('models') }}">Equipment Models</a></li>
+                {% endif %}
+                    <li><a class="{% if active_page == 'reports' %}active{% endif %}" href="{{ url_for('reports') }}">Reporting</a></li>
+                    <li><a href="{{ url_for('logout') }}">Logout</a></li>
+                </ul>
+            </div>
+        </div>
+        <h2>Modify Equipment</h2>
+        <form id="modify-equipment-form" method="POST" action="/modify_equipment?token={{ token }}">
+            <input type="hidden" name="current_equipment" value="{{ Serial_Num }}">
+            <label>Serial #: </label>
+            <span id="serialnum-text">{{ Serial_Num }}</span>
+            <input type="text" id="new_serialnum" name="new_serialnum" value="{{ Serial_Num }}" style="display:none;"><br>
+            <label>LabID: </label>
+            <span id="labid-text">{{ LabID }}</span>
+            <select id="new_labid" name="new_labid" style="display: none;">
+                <option value="{{ LabID }}">{{ LabID }}</option>
+                {% for lab in lablist %}
+                <option value="{{ lab }}">{{ lab }}</option>
+                {% endfor %}
+            </select><br>
+            <label>Model: </label>
+            <span id="model-text">{{ Model }}</span>
+            <select id="new_model" name="new_model" style="display: none;">
+                <option value="{{ Model }}">{{ Model }}</option>
+                {% for model in modellist %}
+                <option value="{{ model }}">{{ model }}</option>
+                {% endfor %}
+            </select><br>
+            <label>Status: </label>
+            <span id="status-text">{{ equipStatus }}</span>
+            <select id="new_status" name="new_status" style="display: none;">
+                <option value="{{ equipStatus }}">{{ equipStatus }}</option>
+                {% for status in statuslist %}
+                <option value="{{ status }}">{{ status }}</option>
+                {% endfor %}
+            </select><br>
+            <button type="button" id="edit-btn">Edit</button>
+            <a id="back-link" href="{{ url_for('manage') }}">Go Back</a>
+            <button type="submit" id="save-btn" style="display: none;">Save</button>
+            <button type="button" id="cancel-btn" style="display: none;">Cancel</button>
+        </form>
+        <div id="add-equipment-modal" class="equip-modal" style="display:none;">
+            <div class="equip-modal-content">
+                <span class="close-equip-modal" id="close-modal">&times;</span>
+                <form id="add-equipment-form" method="POST" action="/add_equipment?token={{ token }}">
+                <!-- form fields -->
+                </form>
+            </div>
+        </div>
+        <script src="{{ url_for('static', filename='script.js') }}"></script>
+    </body>
+</html>

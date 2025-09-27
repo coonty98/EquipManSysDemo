@@ -1,0 +1,28 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Register - Equipment Management System</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+    <div class="login-container">
+        <h2>Register</h2>
+        <form method="POST" action="/register">
+            <input type="text" name="username" placeholder="Username" required>
+            <input type="password" name="password" id="reg-password" placeholder="Password" required>
+            <div class="pwd-reqs">
+                <span id="req-length">Minimum 8 characters</span><br>
+                <span id="req-upper">Minimum 1 uppercase</span><br>
+                <span id="req-lower">Minimum 1 lowercase</span><br>
+                <span id="req-number">Minimum 1 number</span><br>
+                <span id="req-special">Minimum 1 special character</span><br>
+            </div><br>
+            <button type="submit">Register</button>
+        </form>
+        {% if error %}
+            <div style="color: red; text-align: center; margin-top: 10px;">{{ error }}</div>
+        {% endif %}
+    </div>
+    <script src="{{ url_for('static', filename='script.js') }}"></script>
+</body>
+</html>

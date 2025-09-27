@@ -1,0 +1,436 @@
+ul {
+    list-style-type: none;
+    margin: 0px;
+    padding: 0px;
+}
+
+
+li a {
+    /* float: left; */
+    display: block;
+    padding: 8px;
+    background-color: #aca8a8;
+    text-decoration: none;
+    color: black;
+    white-space: nowrap;
+    border-radius: 10px;
+}
+
+.active {
+    background-color: darkblue;
+    color:#dddddd
+}
+
+body {
+    margin: 0;
+    padding: 0;
+    background-color: whitesmoke;
+}
+
+.header {
+    display: flex;
+    align-items: flex-start;
+    /* overflow: hidden; */
+    position: relative;
+}
+
+.img {
+    /* position: static; */
+    flex-shrink: 0;
+    width: 100px;
+    height: auto;
+}
+
+.header2 {
+    /* flex: 1 1 0; */
+    min-width: 0;
+    /* display: inline-block; */
+    position: relative;
+    background-color: lightgrey;
+    width: 100vw;
+    height: 100px;
+    text-align: center;
+    flex-direction: column;
+    justify-content: flex-start;
+}
+
+.header2 ul {
+    position: absolute;
+    left: 50%;
+    bottom: 0;
+    transform: translateX(-50%);
+    margin: 0;
+    padding: 0;
+    display: flex;
+    gap: 8px;
+    /* overflow-x: auto; */
+    white-space: nowrap;
+    max-width: 100%;
+}
+
+.userinfo {
+    position: absolute;
+    top: 10px;
+    right: 20px;
+    background: #f7f7f7;
+    border: 2px solid #bbb;
+    border-radius: 10px;
+    padding: 16px 24px;
+    box-shadow: 0 2px 8px #ccc;
+    min-width: 180px;
+    text-align: left;
+    z-index: 10; 
+}
+
+.userinfo h3, .userinfo h4 {
+    margin: 0 0 4px 0;
+    font-weight: normal;
+    display: inline;
+}
+
+.userinfo h3 {
+    font-size: 1em;
+    color: #333;
+}
+
+.userinfo h4 {
+    font-size: 1em;
+    color: #2d5be3;
+    margin-left: 4px;
+}
+
+h1 {
+    position: relative;
+    margin: 0px;
+    white-space: nowrap;
+}
+
+/* .daily{
+    background-color: bisque;
+}
+
+.weekly{
+    background-color: lightgreen;
+}
+
+.monthly{
+    background-color: lightseagreen;
+}
+
+.quarterly{
+    background-color: lightgoldenrodyellow;
+}
+
+.annual{
+    background-color: lightpink;
+} */
+
+/* table, th, td {
+    border: none;
+    border-collapse: collapse;
+    table-layout: fixed;
+    width: 100%;
+} */
+
+/* th {
+    background-color: #001a4d;
+    color: #fff;
+} */
+
+/* Alternating row colors for all tables */
+/* table tr:nth-child(even) {
+    background-color: #f2f2f2;
+} */
+
+/* Add margin to tables so they do not touch the browser edge */
+/* table {
+    margin-left: auto;
+    margin-right: auto;
+    max-width: calc(100vw - 48px);
+} */
+
+/* Reusable styled-table class for manage and users pages */
+.styled-table {
+    border: none;
+    border-collapse: collapse;
+    table-layout: fixed;
+    width: 100%;
+    margin-left: auto;
+    margin-right: auto;
+    max-width: calc(100vw - 48px);
+    box-shadow: 0 px 0 0 #ddd;
+}
+.styled-table th {
+    background-color: #001a4d;
+    color: #fff;
+    box-shadow: 0 1px 0 0 #ddd;
+}
+.styled-table tr:nth-child(even) {
+    background-color: #f2f2f2;
+}
+.styled-table tr:nth-child(odd) {
+    background-color: #fff;
+}
+.styled-table th, .styled-table td {
+    max-width: 140px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    text-align: center;
+    height: 40px;
+}
+
+.styled-table thead {
+    position: sticky;
+    top: 0;
+    z-index: 1;
+}
+
+.daily, .weekly, .monthly, .quarterly, .annual {
+    margin-bottom: 30px;
+}
+
+#equipment-table.styled-table th:nth-child(7),
+#equipment-table.styled-table td:nth-child(7),
+#equipment-table.styled-table th:nth-child(8),
+#equipment-table.styled-table td:nth-child(8),
+#equipment-table.styled-table th:nth-child(9),
+#equipment-table.styled-table td:nth-child(9),
+#equipment-table.styled-table th:nth-child(10),
+#equipment-table.styled-table td:nth-child(10),
+#equipment-table.styled-table th:nth-child(11),
+#equipment-table.styled-table td:nth-child(11) {
+    width: 40px;
+    min-width: 40px;
+    max-width: 40px;
+    padding-left: 0;
+    padding-right: 0;
+}
+
+/* table tr:nth-child(odd) {
+    background-color: #fff;
+} */
+/* Make all table columns equal width */
+/* th, td {
+    width: 140px;
+    min-width: 140px;
+    max-width: 140px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    text-align: center;
+    height: 40px;
+} */
+
+.pwd-reqs {
+    font-size: smaller;
+    color: grey;
+}
+
+.login-container {
+    max-width: 350px;
+    margin: 80px auto;
+    padding: 32px 24px;
+    background: #f7f7f7;
+    border-radius: 8px;
+    box-shadow: 0 2px 8px #ccc;
+}
+.login-container h2 {
+    text-align: center;
+    margin-bottom: 24px;
+}
+.login-container input[type="text"],
+.login-container input[type="password"] {
+    width: 100%;
+    padding: 10px;
+    margin: 8px 0 16px 0;
+    border: 1px solid #bbb;
+    border-radius: 4px;
+}
+.login-container button {
+    width: 100%;
+    padding: 10px;
+    background: #2d5be3;
+    color: #fff;
+    border: none;
+    border-radius: 4px;
+    font-size: 1em;
+    cursor: pointer;
+}
+.login-container button:hover {
+    background: #1a3c8b;
+}
+
+.modal {
+  display: none;
+  position: fixed;
+  z-index: 1000;
+  left: 0; top: 0;
+  width: 100vw; height: 100vh;
+  background: rgba(0,0,0,0.4);
+}
+.modal-content {
+  background: #fff;
+  margin: 5% auto;
+  padding: 24px;
+  border-radius: 8px;
+  width: 600px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+  position: relative;
+}
+.close {
+  position: absolute;
+  right: 16px;
+  top: 8px;
+  font-size: 28px;
+  font-weight: bold;
+  color: #333;
+  cursor: pointer;
+}
+
+#logout-warning-modal.modal {
+  display: none;
+  position: fixed;
+  z-index: 2000;
+  left: 0; top: 0;
+  width: 100vw; height: 100vh;
+  background: rgba(0,0,0,0.4);
+}
+#logout-warning-modal .modal-content {
+  background: #fff;
+  margin: 15% auto;
+  padding: 24px;
+  border-radius: 8px;
+  width: 350px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+  position: relative;
+}
+
+.tab-content {
+    max-height: 300px;
+    overflow-y: auto;
+    margin-top: 20px;
+    padding: 15px;
+    background: #f7f7f7;
+    border-radius: 8px;
+    border: 1px solid #ddd;
+}
+
+#lab-access-table {
+    width: 100%;
+    border-collapse: collapse;
+}
+
+#lab-access-table th, 
+#lab-access-table td {
+    padding: 8px;
+    text-align: left;
+    border-bottom: 1px solid #ddd;
+}
+
+#lab-access-table tbody {
+    max-height: 200px;
+    overflow-y: auto;
+}
+
+#save-lab-access {
+    margin-top: 15px;
+    padding: 8px 16px;
+    background: #2d5be3;
+    color: white;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+}
+
+#save-lab-access:hover {
+    background: #1a3c8b;
+}
+
+.empty-table-message {
+    text-align: center;
+    padding: 20px;
+    color: #666;
+    font-style: italic;
+    background-color: #f9f9f9;
+    border-radius: 4px;
+    margin: 10px 0;
+}
+
+.table-container {
+    max-height: 300px;
+    overflow-y: auto;
+    margin-bottom: 20px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+}
+
+.hidden {
+    display: none !important;
+}
+
+.logo-image {
+    width: 100 px;
+    height: 100px;
+    object-fit: contain;
+}
+
+.modal-buttons {
+    display: flex;
+    justify-content: space-between;
+    margin-top: 20px;
+}
+
+.btn-primary {
+    background-color: #2d5be3;
+    color: white;
+    padding: 8px 16px;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+}
+
+.btn-secondary {
+    background-color: #f2f2f2;
+    color: #333;
+    padding: 8px 16px;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    cursor: pointer;
+}
+
+.success-message {
+    color: green; 
+    margin-left: 10px;
+}
+
+.failure-message {
+    color: red;
+    text-align: center;
+    margin-top: 10px;
+}
+
+.ms-signin-button {
+  display: flex; /* Arranges the logo and text horizontally */
+  align-items: center; /* Vertically aligns the logo and text */
+  justify-content: center; /* Horizontally centers the content */
+  padding: 10px 20px; /* Adjust padding as needed */
+  background-color: #0078D4; /* Microsoft's primary blue color */
+  color: white; /* White text for contrast */
+  border: none;
+  border-radius: 4px; /* Slightly rounded corners */
+  font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif; /* Recommended font stack */
+  font-size: 16px;
+  cursor: pointer;
+  transition: background-color 0.2s ease-in-out; /* Smooth hover effect */
+}
+
+.ms-signin-button:hover {
+  background-color: #005A9E; /* Darker blue on hover */
+}
+
+.ms-signin-logo {
+  width: 24px; /* Adjust logo size as needed */
+  height: 24px; /* Adjust logo size as needed */
+  margin-right: 10px; /* Space between logo and text */
+}

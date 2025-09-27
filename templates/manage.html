@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <title>Equipment Management</title>
+        <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+        <meta name="csrf-token" content="{{ csrf_token() }}">
+    </head>
+    <body>
+        <div class="header">
+            <div class="img">
+                <img src="{{ url_for('static', filename='images/demo_logo.jpg') }}" class="logo-image">
+            </div>
+            <div class="header2">
+                
+                <h1>Equipment Management System</h1>
+            
+                <ul>
+                    <li><a class="{% if active_page == 'index' %}active{% endif %}" href="{{ url_for('index') }}">Lab Home</a></li>
+                {% if session.access_level in ['Administrator', 'Manager', 'Local Audit', 'Global Audit'] %}
+                    <li><a class="{% if active_page == 'manage' %}active{% endif %}" href="{{ url_for('manage') }}">Equipment Management</a></li>
+                    <li><a class="{% if active_page == 'users' %}active{% endif %}" href="{{ url_for('users') }}">User Management</a></li>
+                {% endif %}
+                    <li><a class="{% if active_page == 'models' %}active{% endif %}" href="{{ url_for('models') }}">Equipment Models</a></li>
+                    <li><a class="{% if active_page == 'reports' %}active{% endif %}" href="{{ url_for('reports') }}">Reporting</a></li>
+                    <li><a href="{{ url_for('logout') }}">Logout</a></li>
+                </ul>
+            </div>
+        </div>
+        <h1>Equipment</h1>
+        <select id="lablist-equipment">
+            <option value="All Labs">All Labs</option>
+            {% for lab in lablist %}
+                <option value="{{ lab }}" {% if lab == selected_lab %}selected{% endif %}>{{ lab }}</option>
+            {% endfor %}
+        </select>
+        <select id="classlist-equipment">
+            <option value="All Classes">All Classes</option>
+            {% for class in classlist %}
+                <option value="{{ class }}" {% if class == selected_class %}selected{% endif %}>{{ class }}</option>
+            {% endfor %}
+        </select>
+        <input type="text" id="equipment-search" placeholder="Search Equipment...">
+        <button type="button"
+            class="open-addequip-modal"
+            {% if session.access_level not in ['Administrator', 'Manager'] %}disabled{% endif %}>
+            Add Equipment
+        </button>
+        <label for="inactive-equip-toggle">Toggle inactive equipment</label>
+        <input type="checkbox" name="inactive-equip-toggle" id="inactive-equip-toggle" {% if inactivetoggle == 'True' %}checked{% endif %}>
+        <table id="equipment-table" class="styled-table">
+            <thead>
+                    <tr>
+                        <th>Serial #</th>
+                        <th>Model</th>
+                        <th>Manufacturer</th>
+                        <th>Class</th>
+                        <th>LabID</th>
+                        <th>Created</th>
+                        <th>D</th>
+                        <th>W</th>
+                        <th>M</th>
+                        <th>Q</th>
+                        <th>A</th>
+                        <th>Status</th>
+                        <th></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    
+                </tbody>
+        </table>
+        <div id="modify-equipment-modal" class="modal hidden">
+            <div class="modal-content">
+                <span class="close" id="close-modal">&times;</span>
+                <form id="modify-equipment-form" class="needs-confirmation" method="POST" action="/modify_equipment">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <input type="hidden" name="token" id="modal-token">
+                <label for="modal-serialnum">Serial #:</label>
+                <span id="serialnum-text">{{ Serial_Num }}</span>
+                <input type="text" name="new_serialnum" id="modal-serialnum"><br>
+                <label for="modal-labid">LabID:</label>
+                <select name="new_labid" id="modal-labid">
+                    {% for lab in lablist %}
+                    <option value="{{ lab }}">{{ lab }}</option>
+                    {% endfor %}
+                </select><br>
+                <label for="modal-model">Model:</label>
+                <select name="new_model" id="modal-model">
+                    {% for model in modellist %}
+                    <option value="{{ model }}">{{ model }}</option>
+                    {% endfor %}
+                </select><br>
+                <label for="modal-status">Status:</label>
+                <select name="new_status" id="modal-status">
+                    {% for status in statuslist %}
+                    <option value="{{ status }}">{{ status }}</option>
+                    {% endfor %}
+                </select><br>
+                <button type="submit">Save</button>
+                <button type="button" id="cancel-modal">Cancel</button>
+                </form>
+            </div>
+        </div>
+        <div id="add-equipment-modal" class="modal hidden">
+            <div class="modal-content">
+                <span class="close" id="close-modal-addequip">&times;</span>
+                <form id="add-equipment-form" class="needs-confirmation" method="POST" action="/add_equipment">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <input type="hidden" name="token" id="modal-token-addequip">
+                <label for="modal-serialnum-addequip">Serial #:</label>
+                <input type="text" name="new_serialnum" id="modal-serialnum-addequip" required><br>
+                <label for="modal-labid-addequip">LabID:</label>
+                <select name="new_labid" id="modal-labid-addequip">
+                    <option value="default"></option>
+                    {% for lab in lablist %}
+                    <option value="{{ lab }}">{{ lab }}</option>
+                    {% endfor %}
+                </select><br>
+                <label for="modal-model-addequip">Model:</label>
+                <select name="new_model" id="modal-model-addequip">
+                    <option value="default"></option>
+                    {% for model in modellist %}
+                    <option value="{{ model }}">{{ model }}</option>
+                    {% endfor %}
+                </select><br>
+                <label for="modal-status-addequip">Status:</label>
+                <select name="new_status" id="modal-status-addequip">
+                    <option value="default"></option>
+                    {% for status in statuslist %}
+                    <option value="{{ status }}">{{ status }}</option>
+                    {% endfor %}
+                </select><br>
+                <button type="submit">Save</button>
+                <button type="button" id="cancel-modal-addequip">Cancel</button>
+                </form>
+            </div>
+        </div>
+        <div id="confirmation-modal" class="modal hidden">
+            <div class="modal-content">
+                <h2>Confirm Submission</h2>
+                <p id="confirmation-message">Are you sure you want to submit this form?</p>
+                <div class="modal-buttons">
+                <button id="confirm-submit" class="btn-primary">Yes, Submit</button>
+                <button id="cancel-submit" class="btn-secondary">Cancel</button>
+                </div>
+            </div>
+        </div>
+        <div id="user-data" 
+            data-access-level="{{ access_level }}"
+            data-timeout-seconds="{{ sessionTimeout_sec }}"
+            class="hidden">
+        </div>
+        <script src="{{ url_for('static', filename='script.js') }}"></script>
+    </body>
+</html>

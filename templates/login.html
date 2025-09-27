@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Login - Equipment Management System</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <meta name="csrf-token" content="{{ csrf_token() }}">
+</head>
+<body>
+    <div class="login-container">
+        <h2>Login</h2>
+        <form id="login-form" method="POST" action="/login">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <input type="text" id="username" name="username" placeholder="Username" required autofocus>
+            <input type="password" id="password" name="password" class="password-field" placeholder="Password" required>
+            <input type="checkbox" id="showpassword" onclick="showPassword()">Show Password
+            <button type="submit">Login</button>
+        </form>
+        <div id="login-message" class="failure-message">
+            {% if error %}
+                {{ error }}
+            {% endif %}
+        </div>
+        <a href="{{ url_for('login_microsoft') }}" class="ms-signin-button">
+            <img src="{{ url_for('static', filename='images/microsoft_logo.svg') }}" alt="Microsoft Logo" class="ms-signin-logo">
+            <span class="ms-signin-text">Sign in with Microsoft</span>
+        </a>
+    </div>
+    <script src="{{ url_for('static', filename='script.js') }}"></script>
+</body>
+</html>

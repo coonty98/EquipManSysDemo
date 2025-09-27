@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <title>EquipManSys</title>
+        <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+        <meta name="csrf-token" content="{{ csrf_token() }}">
+    </head>
+    <body>
+        <div class="header">
+            <div class="img">
+                <img src="{{ url_for('static', filename='images/demo_logo.jpg') }}" class="logo-image">
+            </div>
+            <div class="header2">
+                
+                <h1>Equipment Management System</h1>
+            
+                <ul>
+                    <li><a class="{% if active_page == 'index' %}active{% endif %}" href="{{ url_for('index') }}">Lab Home</a></li>
+                {% if session.access_level in ['Administrator', 'Manager', 'Local Audit', 'Global Audit'] %}
+                    <li><a class="{% if active_page == 'manage' %}active{% endif %}" href="{{ url_for('manage') }}">Equipment Management</a></li>
+                    <li><a class="{% if active_page == 'users' %}active{% endif %}" href="{{ url_for('users') }}">User Management</a></li>
+                    <li><a class="{% if active_page == 'models' %}active{% endif %}" href="{{ url_for('models') }}">Equipment Models</a></li>
+                    <li><a class="{% if active_page == 'reports' %}active{% endif %}" href="{{ url_for('reports') }}">Reporting</a></li>
+                {% endif %}
+                    <li><a href="{{ url_for('logout') }}">Logout</a></li>
+                </ul>
+            </div>
+            <div class="userinfo">
+                <h3>User: </h3><h4>{{ session.get('username') }}</h4>
+                <h3>Access: </h3><h4>{{ session.get('access_level') }}</h4>
+                <form id="lab-select-form" method="POST" action="{{ url_for('change_lab') }}">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <label for="labid-select">Change Lab:</label>
+                    <select name="labid" id="labid-select" onchange="this.form.submit()">
+                        {% for lab in session.get('labs', []) %}
+                            <option value="{{ lab }}" {% if lab == session.get('LabID') %}selected{% endif %}>{{ lab }}</option>
+                        {% endfor %}
+                    </select>
+                </form>
+            </div>
+        </div>
+        <select id="lablist">
+            <option value="All Labs">All Labs</option>
+            {% for lab in lablist %}
+                <option value="{{ lab }}" {% if lab == selected_lab %}selected{% endif %}>{{ lab }}</option>
+            {% endfor %}
+        </select>
+        <select id="classlist">
+            <option value="All Classes">All Classes</option>
+            {% for class in classlist %}
+                <option value="{{ class }}" {% if class == selected_class %}selected{% endif %}>{{ class }}</option>
+            {% endfor %}
+        </select>
+        <input type="text" id="pm-search" placeholder="Search PMs...">
+        <div class="daily">
+            <h1>Daily PM's Due</h1>
+            <div class="table-container">
+                <table id="daily-pm-table" class="styled-table">
+                    <thead>
+                        <tr>
+                            <th>Record #</th>
+                            <th>Lab</th>
+                            <th>Serial #</th>
+                            <th>Equipment</th>
+                            <th>Class</th>
+                            <th>Start Date</th>
+                            <th>End Date</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        
+                    </tbody>
+                </table>
+                <ul id="daily-pm-list"></ul>
+            </div>
+        </div>
+        <div class="weekly">
+            <h1>Weekly PM's Due</h1>
+            <div class="table-container">
+                <table id="weekly-pm-table" class="styled-table">
+                    <thead>
+                        <tr>
+                            <th>Record #</th>
+                            <th>Lab</th>
+                            <th>Serial #</th>
+                            <th>Equipment</th>
+                            <th>Class</th>
+                            <th>Start Date</th>
+                            <th>End Date</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        
+                    </tbody>
+                </table>
+                <ul id="weekly-pm-list"></ul>
+            </div>
+        </div>
+        </div>
+        <div class="monthly">
+            <h1>Monthly PM's Due</h1>
+            <div class="table-container">
+                <table id="monthly-pm-table" class="styled-table">
+                    <thead>
+                        <tr>
+                            <th>Record #</th>
+                            <th>Lab</th>
+                            <th>Serial #</th>
+                            <th>Equipment</th>
+                            <th>Class</th>
+                            <th>Start Date</th>
+                            <th>End Date</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        
+                    </tbody>
+                </table>
+                <ul id="monthly-pm-list"></ul>
+            </div>
+        </div>
+        <div class="quarterly">
+            <h1>Quarterly PM's Due</h1>
+            <div class="table-container">
+                <table id="quarterly-pm-table" class="styled-table">
+                    <thead>
+                        <tr>
+                            <th>Record #</th>
+                            <th>Lab</th>
+                            <th>Serial #</th>
+                            <th>Equipment</th>
+                            <th>Class</th>
+                            <th>Start Date</th>
+                            <th>End Date</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        
+                    </tbody>
+                </table>
+                <ul id="quarterly-pm-list"></ul>
+            </div>
+        </div>
+        <div class="annual">
+            <h1>Annual PM's Due</h1>
+            <div class="table-container">
+                <table id="annual-pm-table" class="styled-table">
+                    <thead>
+                        <tr>
+                            <th>Record #</th>
+                            <th>Lab</th>
+                            <th>Serial #</th>
+                            <th>Equipment</th>
+                            <th>Class</th>
+                            <th>Start Date</th>
+                            <th>End Date</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        
+                    </tbody>
+                </table>
+                <ul id="annual-pm-list"></ul>
+            </div>
+        </div>
+        <div id="formsubmit-modal" class="modal hidden">
+            <div class="modal-content">
+                <span class="close" id="close-modal-formsubmit">&times;</span>
+                <form id="formsubmit-form" class="needs-confirmation" method="POST" action="/formsubmit">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <input type="hidden" name="token" id="modal-token-formsubmit">
+                    <input type="hidden" name="record_num" id="modal-recordnum-formsubmit">
+                    <input type="hidden" name="model" id="modal-model-formsubmit">
+                    <input type="hidden" name="completedby" id="modal-completeby-formsubmit">
+                    <div id="formsubmit-fields"></div>
+                    <button type="submit">Save</button>
+                    <button type="button" id="cancel-modal-formsubmit">Cancel</button>
+                </form>
+            </div>
+        </div>
+        <div id="confirmation-modal" class="modal hidden">
+            <div class="modal-content">
+                <h2>Confirm Submission</h2>
+                <p id="confirmation-message">Are you sure you want to submit this form?</p>
+                <div class="modal-buttons">
+                <button id="confirm-submit" class="btn-primary">Yes, Submit</button>
+                <button id="cancel-submit" class="btn-secondary">Cancel</button>
+                </div>
+            </div>
+        </div>
+        <div id="user-data" 
+            data-access-level="{{ access_level }}"
+            data-timeout-seconds="{{ sessionTimeout_sec }}"
+            class="hidden">
+        </div>
+        <script src="{{ url_for('static', filename='script.js') }}"></script>
+    </body>
+</html>

@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <title>Modify Models Form</title>
+        <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+        <meta name="csrf-token" content="{{ csrf_token() }}">
+    </head>
+    <body>
+        <div class="header">
+            <div class="img">
+                <img src="{{ url_for('static', filename='images/demo_logo.jpg') }}" class="logo-image">
+            </div>
+            <div class="header2">
+                
+                <h1>Equipment Management System</h1>
+            
+                <ul>
+                    <li><a class="{% if active_page == 'index' %}active{% endif %}" href="{{ url_for('index') }}">Lab Home</a></li>
+                {% if session.access_level in ['Administrator', 'Manager', 'Local Audit', 'Global Audit'] %}
+                    <li><a class="{% if active_page == 'manage' %}active{% endif %}" href="{{ url_for('manage') }}">Equipment Management</a></li>
+                    <li><a class="{% if active_page == 'users' %}active{% endif %}" href="{{ url_for('users') }}">User Management</a></li>
+                {% endif %}
+                    <li><a class="{% if active_page == 'models' %}active{% endif %}" href="{{ url_for('models') }}">Equipment Models</a></li>
+                    <li><a class="{% if active_page == 'reports' %}active{% endif %}" href="{{ url_for('reports') }}">Reporting</a></li>
+                    <li><a href="{{ url_for('logout') }}">Logout</a></li>
+                </ul>
+            </div>
+        </div>
+        <form id="modify-models-form" class="needs-confirmation" method="POST" action="/modify_models?token={{ token }}">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <label for="new_model">Model: </label>
+            <span id="model-text">{{ Model }}</span>
+            <input type="text" id="new_model" name="new_model" value="{{ Model }}" class="hidden"><br>
+            <label for="new_manufacturer">Manufacturer: </label>
+            <span id="manufacturer-text">{{ Manufacturer }}</span>
+            <input type="text" id="new_manufacturer" name="new_manufacturer" value="{{ Manufacturer }}" class="hidden"><br>
+            <label for="new_equipmentclass">Class: </label>
+            <span id="class-text">{{ Equipment_Class }}</span>
+            <select id="new_equipmentclass" name="new_equipmentclass" class="hidden"><br>
+                <option value="{{ Equipment_Class }}">{{ Equipment_Class }}</option>
+                {% for class in classlist %}
+                    {% if class != Equipment_Class %}
+                        <option value="{{ class }}">{{ class }}</option>
+                    {% endif %}
+                {% endfor %}
+            </select><br>
+            <label for="new_modelActive">Active: </label>
+            <span id="modelActive-text">{{ modelActive }}</span>
+            <input type="checkbox" id="new_modelActive" name="new_modelActive" {% if modelActive == 'true'  or modelActive == 'True' or modelActive == true %}checked{% endif %} class="hidden"><br>
+            <label for="pmreq-daily">Daily PM Required:</label>
+            <span id="pmreq-daily-text">{{ PM_Req_Daily }}</span>
+            <input type="checkbox" id="pmreq-daily" name="pmreq-daily" {% if PM_Req_Daily == 'true' or PM_Req_Daily == true %}checked{% endif %} class="hidden"><br>
+            {% for dailytask in dailytasks %}
+            <span class="pmreq-daily-task-text" id="pmreq-daily-task-text-{{ loop.index }}" name="pmreq-daily-task-text-{{ loop.index }}">{{ dailytask[3] }}. {{ dailytask[4] }}</span>
+            <input type="text" class="pmreq-daily-task-input hidden" id="pmreq-daily-task-input-{{ loop.index }}" name="pmreq-daily-task-input-{{ loop.index }}" value="{{ dailytask[4] }}"><br>
+            {% endfor %}
+            <div id="inputContainer-daily" data-maxformorder="{{ maxformorder_daily|default(0) }}">
+            </div>
+            <button type="button" id="addFieldButton-daily" class="hidden">Add Task</button><br>
+            <label for="pmreq-weekly">Weekly PM Required:</label>
+            <span id="pmreq-weekly-text">{{ PM_Req_Weekly }}</span>
+            <input type="checkbox" id="pmreq-weekly" name="pmreq-weekly" {% if PM_Req_Weekly == 'true' or PM_Req_Weekly == true %}checked{% endif %} class="hidden"><br>
+            {% for weeklytask in weeklytasks %}
+            <span class="pmreq-weekly-task-text" id="pmreq-weekly-task-text-{{ loop.index }}" name="pmreq-weekly-task-text-{{ loop.index }}">{{ weeklytask[3] }}. {{ weeklytask[4] }}</span>
+            <input type="text" class="pmreq-weekly-task-input hidden" id="pmreq-weekly-task-input-{{ loop.index }}" name="pmreq-weekly-task-input-{{ loop.index }}" value="{{ weeklytask[4] }}"><br>
+            {% endfor %}
+            <div id="inputContainer-weekly" data-maxformorder="{{ maxformorder_weekly|default(0) }}">
+            </div>
+            <button type="button" id="addFieldButton-weekly" class="hidden">Add Task</button><br>
+            <label for="pmreq-monthly">Monthly PM Required:</label>
+            <span id="pmreq-monthly-text">{{ PM_Req_Monthly }}</span>
+            <input type="checkbox" id="pmreq-monthly" name="pmreq-monthly" {% if PM_Req_Monthly == 'true' or PM_Req_Monthly == true %}checked{% endif %} class="hidden"><br>
+            {% for monthlytask in monthlytasks %}
+            <span class="pmreq-monthly-task-text" id="pmreq-monthly-task-text-{{ loop.index }}" name="pmreq-monthly-task-text-{{ loop.index }}">{{ monthlytask[3] }}. {{ monthlytask[4] }}</span>
+            <input type="text" class="pmreq-monthly-task-input hidden" id="pmreq-monthly-task-input-{{ loop.index }}" name="pmreq-monthly-task-input-{{ loop.index }}" value="{{ monthlytask[4] }}"><br>
+            {% endfor %}
+            <div id="inputContainer-monthly" data-maxformorder="{{ maxformorder_monthly|default(0) }}">
+            </div>
+            <button type="button" id="addFieldButton-monthly" class="hidden">Add Task</button><br>
+            <label for="pmreq-quarterly">Quarterly PM Required:</label>
+            <span id="pmreq-quarterly-text">{{ PM_Req_Quarterly }}</span>
+            <input type="checkbox" id="pmreq-quarterly" name="pmreq-quarterly" {% if PM_Req_Quarterly == 'true' or PM_Req_Quarterly == true %}checked{% endif %} class="hidden"><br>
+            {% for quarterlytask in quarterlytasks %}
+            <span class="pmreq-quarterly-task-text" id="pmreq-quarterly-task-text-{{ loop.index }}" name="pmreq-quarterly-task-text-{{ loop.index }}">{{ quarterlytask[3] }}. {{ quarterlytask[4] }}</span>
+            <input type="text" class="pmreq-quarterly-task-input hidden" id="pmreq-quarterly-task-input-{{ loop.index }}" name="pmreq-quarterly-task-input-{{ loop.index }}" value="{{ quarterlytask[4] }}"><br>
+            {% endfor %}
+            <div id="inputContainer-quarterly" data-maxformorder="{{ maxformorder_quarterly|default(0) }}">
+            </div>
+            <button type="button" id="addFieldButton-quarterly" class="hidden">Add Task</button><br>
+            <label for="pmreq-annual">Annual PM Required:</label>
+            <span id="pmreq-annual-text">{{ PM_Req_Annual }}</span>
+            <input type="checkbox" id="pmreq-annual" name="pmreq-annual" {% if PM_Req_Annual == 'true' or PM_Req_Annual == true %}checked{% endif %} class="hidden"><br>
+            {% for annualtask in annualtasks %}
+            <span class="pmreq-annual-task-text" id="pmreq-annual-task-text-{{ loop.index }}" name="pmreq-annual-task-text-{{ loop.index }}">{{ annualtask[3] }}. {{ annualtask[4] }}</span>
+            <input type="text" class="pmreq-annual-task-input hidden" id="pmreq-annual-task-input-{{ loop.index }}" name="pmreq-annual-task-input-{{ loop.index }}" value="{{ annualtask[4] }}"><br>
+            {% endfor %}
+            <div id="inputContainer-annual" data-maxformorder="{{ maxformorder_annual|default(0) }}">
+            </div>
+            <button type="button" id="addFieldButton-annual" class="hidden">Add Task</button><br>
+            {% if session.access_level == 'Administrator' %}
+            <button type="button" id="models-edit-btn">Edit</button>
+            {% endif %}
+            <a id="models-back-link" href="{{ url_for('models') }}">Go Back</a>
+            <button type="submit" id="models-save-btn" class="hidden">Save</button>
+            <button type="button" id="models-cancel-btn" class="hidden">Cancel</button>
+        </form>
+        <div id="confirmation-modal" class="modal hidden">
+            <div class="modal-content">
+                <h2>Confirm Submission</h2>
+                <p id="confirmation-message">Are you sure you want to submit this form?</p>
+                <div class="modal-buttons">
+                <button id="confirm-submit" class="btn-primary">Yes, Submit</button>
+                <button id="cancel-submit" class="btn-secondary">Cancel</button>
+                </div>
+            </div>
+        </div>
+        <div id="user-data"
+            data-timeout-seconds="{{ sessionTimeout_sec }}"
+            class="hidden">
+        </div>
+        <script src="{{ url_for('static', filename='script.js') }}"></script>
+    </body>
+</html>

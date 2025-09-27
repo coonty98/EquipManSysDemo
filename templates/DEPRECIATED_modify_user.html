@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <title>New User</title>
+        <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    </head>
+    <body>
+        <div class="header">
+            <div class="img">
+                <img src="https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcRCTwYHO5NTJzPxmJLz4eSCqcJm8f5epko3ow&s" width="100px" height="100px">
+            </div>
+            <div class="header2">
+                
+                <h1>Equipment Management System</h1>
+            
+                <ul>
+                    <li><a class="{% if active_page == 'index' %}active{% endif %}" href="{{ url_for('index') }}">Lab Home</a></li>
+                {% if session.access_level in ['Administrator', 'Manager'] %}
+                    <li><a class="{% if active_page == 'manage' %}active{% endif %}" href="{{ url_for('manage') }}">Equipment Management</a></li>
+                    <li><a class="{% if active_page == 'users' %}active{% endif %}" href="{{ url_for('users') }}">User Management</a></li>
+                {% endif %}
+                {% if session.access_level == 'Administrator' %}
+                    <li><a class="{% if active_page == 'models' %}active{% endif %}" href="{{ url_for('models') }}">Equipment Models</a></li>
+                {% endif %}
+                    <li><a class="{% if active_page == 'reports' %}active{% endif %}" href="{{ url_for('reports') }}">Reporting</a></li>
+                    <li><a href="{{ url_for('logout') }}">Logout</a></li>
+                </ul>
+            </div>
+        </div>
+        <h2>Modify User</h2>
+        <form id="modify-user-form" method="POST" action="/modify_user?token={{ token }}">
+            <input type="hidden" name="current_username" value="{{ username }}">
+            <label>Username: </label>
+            <span id="username-text">{{ username }}</span>
+            <input type="text" id="new_username" name="new_username" value="{{ username }}" style="display: none;"><br>
+            <label>Access Level: </label>
+            <span id="accesslevel-text">{{ access_level }}</span>
+            <input type="text" id="new_access_level" name="new_access_level" value="{{ access_level }}" style="display: none;"><br>
+            <label>Primary Lab: </label>
+            <span id="primarylab-text">{{ PrimaryLab }}</span>
+            <input type="text" id="new_primarylab" name="new_primarylab" value="{{ PrimaryLab }}" style="display: none;"><br>
+            <label>Status: </label>
+            <span id="userstatus-text">{{ userStatus }}</span>
+            <select id="new_userstatus" name="new_userstatus" style="display: none;"><br>
+                <option value="{{ userStatus }}">{{ userStatus }}</option>
+                {% for status in statuslist %}
+                    {% if status != userStatus %}
+                        <option value="{{ status }}">{{ status }}</option>
+                    {% endif %}
+                {% endfor %}
+            </select><br>
+            <input type="hidden" name="form_type" value="user">
+            <button type="button" id="edit-btn">Edit</button>
+            <a id="back-link" href="{{ url_for('users') }}">Go Back</a>
+            <button type="submit" id="save-btn" style="display: none;">Save</button>
+            <button type="button" id="cancel-btn" style="display: none;">Cancel</button>
+        </form>
+        <!-- <form method="POST" action="/modify_user?token={{ token }}">
+            <input type="hidden" name="current_username" value="{{ username }}">
+            <label>Current Username: </label><label>{{ username }}</label><br>
+            <label>Current Access Level: </label><label>{{ access_level }}</label><br>
+            <label>Current Lab Access: </label><label>{{ LabID }}</label><br>
+            <label for="new_username">Enter new Username: </label>
+            <input type="text" id="new_username" name="new_username" placeholder="New Username"><br>
+            <label for="new_access_level">Select new Access Level: </label>
+            <select name="new_access_level" id="new_access_level">
+                {% for row in access_list %}
+                <option value="{{ row[0] }}">{{ row[0] }}</option>
+                {% endfor %}
+            </select>
+            <input type="hidden" name="form_type" value="user">
+            <button type="submit">Submit</button> -->
+        <!-- </form> -->
+        <!-- <form method="POST" action="/modify_user?token={{ token }}">
+            <select id="leftList" multiple size="10">
+                {% for lab in lablist %}
+                <option value="{{ lab[0] }}">{{ lab[0] }}</option>
+                {% endfor %}
+            </select>
+
+            <button id="moveRightBtn" type="button"> >> </button>
+            <button id="moveLeftBtn" type="button"> << </button>
+
+            <select id="rightList" name="rightList" multiple size="10">
+            </select>
+            <input type="hidden" name="form_type" value="labs">
+            <button type="submit">Submit</button>
+        </form> -->
+        <script src="{{ url_for('static', filename='script.js') }}"></script>
+    </body>
+</html>
