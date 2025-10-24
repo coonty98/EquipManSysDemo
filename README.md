@@ -120,7 +120,6 @@ This page displays a table of all equipment models. The view can be toggled to s
 This page displays the model details when a model is opened from models.html. Only and admin is able to edit the details in a model. The purpose of this page is to allow an admin to create new tasks as needed. For example, if in the future, it was decided that an annual calibration is required for a certain model, then an admin would enable the annual frequency and add a task for “Calibration” or other appropriate name.
 
 > Currently, there is no logic to create records outside of the daily script. I’m not sure if this will ultimately be necessary, but I may add it in a future enhancement.
-{.is-warning}
 
 > []()
 > ##### **Permissions**
@@ -148,7 +147,6 @@ This page displays a table with users along with the ability to create users and
 The second half of the user details modal displays the lab access for that user. The purpose is to give a user access to other labs so they can assist. Admins can see all labs and access levels while managers can only see labs they have access to and access levels at Manager and below.
 
 > The feature of adding lab access may not be necessary so I might remove it. Also, when logging in with Microsoft, only one lab is available. If I want to expand the functionality, I would need to create a lot more security groups in Azure.
-{.is-warning}
 
 > []()
 > ##### **Permissions**
@@ -304,7 +302,6 @@ See [SQLAlchemy](#sqlalchemy)
 I used access control throughout my project, both in frontend and backend. First, I made sure each Flask route required the user to be logged in, so I created a login-required decorator that could easily be added to each route. I then created a decorator for managing access requirements for specific routes. For example, the Users route requires Administrator, Manager, Global Audit, or Local Audit access. Since I used a decorator, I can easily modify access. I also use access control with Jinja 2 in my HTML pages to show/hide the navigation links and modify behavior of some elements. In my JavaScript code, I use access control to modify certain behavior. For example, only Administrators can modify equipment models while Managers, Global Audit, and Local Audit can only view the data. So, I was able to disable or hide buttons to prevent modification.
 
 > Currently, I only use frontend access control for read-only vs edit access. I may need to change the logic in my Flask routes to prevent modification if permission denied.
-{.is-warning}
 
 ---
 
@@ -334,7 +331,6 @@ I started with migrating my SQL Server database to azure. I chose Azure SQL Serv
 > #### Problems
 >
 > When I was trying to create my database in Azure, I kept getting an error that the resource could not be created due to subscription limits. I didn’t target the source of the issue, but I thought it may be caused by the SQL server database through Azure Arc. So, I attempted creating the resource in a different region which was successful.
-{.is-danger}
 
 ### App Service
 
@@ -364,7 +360,6 @@ az webapp log tail --name <your-app-name> --resource-group <your-resource-group>
 >  After fixing the issue of the session secret, the logs showed another error where ‘timedelta’ was not defined. I had mistakenly removed ‘import timedelta’ prior to deploying.
 >
 >  When I fixed the session secret and timedelta issues, my app still would not open, and the logs showed the same errors. I eventually learned that the logs seem to be lagging behind. When I viewed the logs in Azure, it would start them from several minutes' prior, then repeat everything. I kept making code changes and redeploying and it seemed that the same errors would occur. I also found that I needed to navigate to the webapp to initiate the first build. This took a couple minutes, but once complete, as long as the app service remained in the running state, I could access the app right away.
-{.is-danger}
 
 ### OAuth
 
@@ -382,14 +377,12 @@ I added functionality for users to choose to sign in with Microsoft from the log
 > ```
 >
 >  Whenever I logged out with Microsoft, it wouldn’t redirect back to my login screen, even though I had this set in my code. I actually needed to add a new redirect URI in Entra ID for “/login” so that it would logout, then redirect back to my login page.
-{.is-danger}
 
 ### Custom Domain
 
 Once my app was successfully deployed, I wanted to add my “tybax[]().com ” custom domain. This was easier said than done because it just showed errors or would get stuck on “Get Certificates”. These are the steps that ultimately proved successful:
 
 > App Service must be running before creating certificates, otherwise it will fail.
-{.is-warning}
 
 1. Add custom domain in Azure App Service for equipmansys[]().tybax.com.
 2. In GoDaddy, add the DNS records using info generated from Azure.
@@ -433,14 +426,14 @@ COPY . .
 ```docker
 CMD [ "python3", "-m" , "flask", "run", "--host=0.0.0.0", "--port=5050"]
 ```
-> Use this command for **DEVELOPMENT**. {.is-warning}
+> Use this command for **DEVELOPMENT**.
 - This is the final command to be run in the image. It is calling the flask module from python3 and telling it to run. It is also binding the host ip address and changing the port from the default of 5000.
 - When I ran this on my macbook without `--port=5050`, it did not work because port 5000 was already in use. When I used `lsof` I found that a system command was using that port so I decided to change to 5050.
 ### Production
 ```docker
 CMD ["gunicorn", "-w", "4", "-b", "0.0.0.0:5050", "app:app"]
 ```
-> Use this command for **PRODUCTION**. {.is-warning}
+> Use this command for **PRODUCTION**.
 - Gunicorn is a production HTTP server that will run the flask app. In the command, `-w` `4` indicates 4 workers will be used.
 - A worker is an individual process on the host that handles HTTP requests. The more workers you have, the more requests you can handle at one time.
 - `-b` `0.0.0.0:5050` binds the port on localhost and `app:app` binds the flask app.
@@ -465,7 +458,7 @@ CMD [ "python3", "-m" , "flask", "run", "--host=0.0.0.0", "--port=5050"]
 # For PRODUCTION environment
 CMD ["gunicorn", "-w", "4", "-b", "0.0.0.0:5050", "app:app"]
 ```
-> Only 1 **CMD** command can be used. Add the command necessary for the environment. {.is-danger}
+> Only 1 **CMD** command can be used. Add the command necessary for the environment.
 
 Once the Dockerfile is complete, build the new image:
 ```docker
@@ -614,7 +607,6 @@ The most important part here is the driver which is used to facilitate the conne
 pip install pymysql
 ```
 >pymysql does not need to be imported as a package in the flask app since this is not used directly by the app. It only needs to be available in the environment for SqlAlchemy to use.
-{.is-warning}
 
 ```python
 app.config['SQLALCHEMY_DATABASE_URI'] = (
@@ -629,7 +621,7 @@ With that said, I already prepared the docker compose file with the MySQL contai
 
 I downloaded ***ESF Database Migration Toolkit - Pro*** from the Microsoft store. The process was actually very simple. I entered the source and destination database information, selected the tables I wanted to migrate, and within a couple minutes my new database was a replica of the old.
 
->The caveat with this tool is when it's used in the trial version, it creates an extra field in each table for 'Trial', and it also only migrates 50,000 records per table. {.is-warning}
+>The caveat with this tool is when it's used in the trial version, it creates an extra field in each table for 'Trial', and it also only migrates 50,000 records per table.
 ## Initial Deployment
 The app is now ready to be deployed, but we will need to backtrack for a moment. Since we made modifications to **app[]().py** and **logic[]().py**, we will need to rebuild the image using the command from earlier. Once done, we can deploy with `docker compose up -d`.
 
