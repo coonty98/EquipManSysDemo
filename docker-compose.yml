@@ -1,0 +1,84 @@
+services:
+  emsdemo:
+    image: emsimage
+    container_name: emsdemo
+    depends_on:
+      emsdemoDB:
+        condition: service_healthy
+    # ports:
+    #   - "5050:5050"
+    environment:
+      MYSQL_HOST: emsdemoDB
+      FLASK_ENV: development
+      MYSQL_DATABASE_FILE: /run/secrets/mysql_database
+      MYSQL_USER_FILE: /run/secrets/mysql_user
+      MYSQL_PASSWORD_FILE: /run/secrets/mysql_password
+      FLASK_SECRET_KEY_FILE: /run/secrets/flask_secret_key
+      OAUTH_CLIENT_ID_FILE: /run/secrets/oauth_client_id
+      OAUTH_CLIENT_SECRET_FILE: /run/secrets/oauth_client_secret
+      PWD_CHG_DAYS_FILE: /run/secrets/pwd_chg_days
+      SESSIONTIMEOUT_SEC_FILE: /run/secrets/sessionTimeout_sec
+    secrets:
+      - mysql_database
+      - mysql_user
+      - mysql_password
+      - flask_secret_key
+      - oauth_client_id
+      - oauth_client_secret
+      - pwd_chg_days
+      - sessionTimeout_sec
+    networks:
+      - nginx_internal
+
+  emsdemoDB:
+    image: mysql:8.0
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    container_name: emsdemoDB
+    environment:
+      MYSQL_ROOT_PASSWORD_FILE: /run/secrets/mysql_root_password
+      MYSQL_DATABASE_FILE: /run/secrets/mysql_database
+      MYSQL_USER_FILE: /run/secrets/mysql_user
+      MYSQL_PASSWORD_FILE: /run/secrets/mysql_password
+    secrets:
+      - mysql_root_password
+      - mysql_database
+      - mysql_user
+      - mysql_password
+    volumes:
+      - ./data:/var/lib/mysql
+    # ports:
+    #   - "3306:3306"
+    restart: always
+    networks:
+      - nginx_internal
+
+secrets:
+  mysql_root_password:
+    file: ./secrets/mysql_root_password.txt
+  mysql_password:
+    file: ./secrets/mysql_password.txt
+  mysql_database:
+    file: ./secrets/mysql_database.txt
+  mysql_user:
+    file: ./secrets/mysql_user.txt
+  flask_secret_key:
+    file: ./secrets/flask_secret_key.txt
+  oauth_client_id:
+    file: ./secrets/oauth_client_id.txt
+  oauth_client_secret:
+    file: ./secrets/oauth_client_secret.txt
+  pwd_chg_days:
+    file: ./secrets/pwd_chg_days.txt
+  sessionTimeout_sec:
+    file: ./secrets/sessionTimeout_sec.txt
+
+volumes:
+  data:
+
+networks:
+  nginx_internal:
+    external: true

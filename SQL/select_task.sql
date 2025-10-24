@@ -1,1 +1,0 @@
-SELECT Task FROM dbo.PM_form WHERE ID = {IDvalue} ORDER BY Record_Num DESC;

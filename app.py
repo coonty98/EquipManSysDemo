@@ -1,50 +1,39 @@
-import uuid, time, os, requests
-from logic import (read_query_execute, read_query_get, login_required, require_access_levels, audit, is_valid_password, DatabaseConnection)
+import uuid, time, requests, os
+from logic import (read_secret, login_required, require_access_levels, is_valid_password)
 from flask import Flask, render_template, request, session, redirect, url_for, abort, jsonify
 from flask_cors import CORS
 from flask_wtf.csrf import CSRFProtect
 from werkzeug.security import generate_password_hash, check_password_hash
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta
 from authlib.integrations.flask_client import OAuth
-from models import db, Settings, EquipClass, EquipModels, EquipStatus, UserStatus, Access, Labs, PM_form
+from models import db, Settings, EquipClass, EquipModels, EquipStatus, UserStatus, Access, Labs, PM_form, emsAudit, EquipByLab, PM_Response, Records, Users, UsersLabAccess
 from sqlalchemy import func
-from dotenv import load_dotenv
-
-load_dotenv()
 
 app = Flask(__name__)
-app.env = 'development'
-csrf = CSRFProtect(app)
-# Load secret key before app context
-# app_secret_key = os.environ.get('FLASK_SECRET_KEY')
-# print(f"Secret key loaded: {app_secret_key is not None}")
 
-# if not app_secret_key:
-#     print("WARNING: No FLASK_SECRET_KEY found in environment variables!")
-#     # For development only - NEVER use this in production
-#     app_secret_key = 'dev-secret-for-testing-only'
-# app_secret_key = 'dev-secret-for-testing-only'
-# Set the secret key directly
-# app.secret_key = app_secret_key
+if __name__ == "__main__":
+ app.run(port=5050)
+
+app.env = os.getenv('FLASK_ENV')
+csrf = CSRFProtect(app)
 
 def init_app():
-    app.secret_key = os.environ.get('FLASK_SECRET_KEY', 'dev-secret-for-testing-only')
+    app.secret_key = read_secret(os.environ.get("FLASK_SECRET_KEY", "/run/secrets/flask_secret_key"))
 
 if app.env == 'production':
     init_app()
 
-    db_username = os.environ.get('SQL_USERNAME')
-    db_password = os.environ.get('SQL_PASSWORD')
-    db_server = os.environ.get('SQL_SERVER')
-    db_name = os.environ.get('SQL_DATABASE')
-    oauth_client_id = os.environ.get('OAUTH_CLIENT_ID')
-    oauth_client_secret = os.environ.get('OAUTH_CLIENT_SECRET')
-    sessionTimeout_sec = int(os.environ.get('SN_TIME_SEC'))
-    pwd_chg_days = int(os.environ.get('PWD_CHG_DAY'))
+    db_username = read_secret(os.environ.get("MYSQL_USERNAME", "/run/secrets/mysql_user"))
+    db_password = read_secret(os.environ.get("MYSQL_PASSWORD", "/run/secrets/mysql_password"))
+    db_name = read_secret(os.environ.get("MYSQL_DATABASE", "/run/secrets/mysql_database"))
+    db_server = 'emsdemoDB'
+    oauth_client_id = read_secret(os.environ.get("OAUTH_CLIENT_ID", "/run/secrets/oauth_client_id"))
+    oauth_client_secret = read_secret(os.environ.get("OAUTH_CLIENT_SECRET", "/run/secrets/oauth_client_secret"))
+    sessionTimeout_sec = read_secret(os.environ.get("SESSIONTIMEOUT_SEC", "/run/secrets/sessionTimeout_sec"))
+    pwd_chg_days = read_secret(os.environ.get("PWD_CHG_DAYS", "/run/secrets/pwd_chg_days"))
 
     app.config['SQLALCHEMY_DATABASE_URI'] = (
-        f"mssql+pyodbc://{db_username}:{db_password}@{db_server}/{db_name}?"
-        f"driver=ODBC+Driver+18+for+SQL+Server&TrustServerCertificate=yes&Encrypt=yes"
+        f"mysql+pymysql://{db_username}:{db_password}@{db_server}:3306/{db_name}?charset=utf8mb4"
     )
     app.config.update(
         SESSION_COOKIE_SECURE=True,
@@ -52,26 +41,24 @@ if app.env == 'production':
         SESSION_COOKIE_SAMESITE='Lax',
     )
 else:
-    # app.config['SQLALCHEMY_DATABASE_URI'] = (
-    # "mssql+pyodbc://TYCOONCOMPUTER/EquipManSys?driver=ODBC+Driver+18+for+SQL+Server&TrustServerCertificate=yes"
-    # )
-    db_username = os.getenv('SQL_USERNAME')
-    db_password = os.getenv('SQL_PASSWORD')
-    db_server = os.getenv('SQL_SERVER')
-    db_name = os.getenv('SQL_DATABASE')
-    oauth_client_id = os.getenv('OAUTH_CLIENT_ID')
-    oauth_client_secret = os.getenv('OAUTH_CLIENT_SECRET')
-    sessionTimeout_sec = int(os.getenv('SN_TIME_SEC'))
-    pwd_chg_days = int(os.getenv('PWD_CHG_DAY'))
+    init_app()
+    
+    db_username = read_secret(os.environ.get("MYSQL_USERNAME", "/run/secrets/mysql_user"))
+    db_password = read_secret(os.environ.get("MYSQL_PASSWORD", "/run/secrets/mysql_password"))
+    db_name = read_secret(os.environ.get("MYSQL_DATABASE", "/run/secrets/mysql_database"))
+    db_server = 'emsdemoDB'
+    oauth_client_id = read_secret(os.environ.get("OAUTH_CLIENT_ID", "/run/secrets/oauth_client_id"))
+    oauth_client_secret = read_secret(os.environ.get("OAUTH_CLIENT_SECRET", "/run/secrets/oauth_client_secret"))
+    sessionTimeout_sec = read_secret(os.environ.get("SESSIONTIMEOUT_SEC", "/run/secrets/sessionTimeout_sec"))
+    pwd_chg_days = read_secret(os.environ.get("PWD_CHG_DAYS", "/run/secrets/pwd_chg_days"))
 
     app.config['SQLALCHEMY_DATABASE_URI'] = (
-        f"mssql+pyodbc://{db_username}:{db_password}@{db_server}/{db_name}?"
-        f"driver=ODBC+Driver+18+for+SQL+Server&TrustServerCertificate=yes&Encrypt=yes"
+        f"mysql+pymysql://{db_username}:{db_password}@{db_server}:3306/{db_name}?charset=utf8mb4"
     )
 
-    
 
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+
 db.init_app(app)
 
 with app.app_context():
@@ -80,16 +67,17 @@ with app.app_context():
         app.secret_key = settings.secretkey
         sessionTimeout_sec = settings.sesssionTimeout_sec
         pwd_chg_days = settings.pwd_chg_days
-        oauth_client_id = settings.oauth_clientid
-        oauth_client_secret = settings.oauth_clientsecret
+        secretkey = settings.secretkey
+        oauth_clientid = settings.oauth_clientid
+        oauth_clientsecret = settings.oauth_clientsecret
 
 CORS(app)
 
 oauth = OAuth(app)
 oauth.register(
     name='microsoft',
-    client_id=oauth_client_id,
-    client_secret=oauth_client_secret,
+    client_id=oauth_clientid,
+    client_secret=oauth_clientsecret,
     server_metadata_url='https://login.microsoftonline.com/e7546d4f-84a5-4924-be50-b040e861e520/v2.0/.well-known/openid-configuration',
     client_kwargs={'scope': 'openid email profile User.Read'}
 )
@@ -104,12 +92,6 @@ def check_session_timeout():
             session.clear()
             return redirect(url_for('login'))
         session['last_activity'] = now
-
-# @app.before_request
-# def https_redirect():
-#     if not request.is_secure and app.env != 'development':
-#         url = request.url.replace('http://', 'https://', 1)
-#         return redirect(url)
     
 @app.before_request
 def redirect_to_https():
@@ -139,22 +121,25 @@ def password_change():
         valid, message = is_valid_password(new_password)
         if not valid:
             return render_template('password_change.html', error=message)
-        with DatabaseConnection() as connection:
-            cursor = connection.cursor()
-            cursor.execute("SELECT password_hash, userStatus FROM Users WHERE username = ?", (username,))
-            row = cursor.fetchone()
-            if row and check_password_hash(row[0], old_password):
-                if new_password == old_password:
-                    return render_template('password_change.html', error="New Password cannot be the same as the Old Password!", token=token, username=username)
-                if new_password == confirm_password:
-                    password_hash = generate_password_hash(new_password)
-                    cursor.execute("UPDATE Users SET password_hash = ?, require_pwd_chg = 0, last_pwd_chg = GETDATE() WHERE username = ?", (password_hash, username,))
-                    connection.commit()
-                    return redirect(url_for('login'))
-                else:
-                    return render_template('password_change.html', error="Passwords do not match!", token=token, username=username)
+        userinfo = Users.query.filter_by(username=username).first()
+        if userinfo:
+            passwordhash = userinfo.password_hash
+        if passwordhash and check_password_hash(passwordhash, old_password):
+            if new_password == old_password:
+                return render_template('password_change.html', error="New Password cannot be the same as the Old Password!", token=token, username=username)
+            if new_password == confirm_password:
+                password_hash = generate_password_hash(new_password)
+                update_user = Users.query.filter_by(username=username).first()
+                if update_user:
+                    update_user.password_hash=password_hash
+                    update_user.require_pwd_chg=0
+                    update_user.last_pwd_chg=date.today()
+                    db.session.commit()
+                return redirect(url_for('login'))
             else:
-                return render_template('password_change.html', error="Old Password is incorrect!", token=token, username=username)
+                return render_template('password_change.html', error="Passwords do not match!", token=token, username=username)
+        else:
+            return render_template('password_change.html', error="Old Password is incorrect!", token=token, username=username)
     return render_template('password_change.html', token=token, username=username)
 
 @app.route('/password_change_link/<username>/')
@@ -176,13 +161,19 @@ def get_form_data():
         'model': model
     }
     username = session.get('username')
-    with DatabaseConnection() as connection:
-    # query = read_query_with_params(file_name='get_form_tasks.sql', model=model, record_num=record_num)
-    # rows = execute_and_return(connection, query)
-        rows = read_query_get(connection, 'get_form_tasks.sql', (model,record_num))
+    record = Records.query.filter_by(Record_Num=record_num).first()
+    frequency = record.Frequency if record else None
+    if frequency:
+        rows = (
+            PM_form.query.filter_by(Model=model, Frequency=frequency)
+            .order_by(PM_form.Form_Order.asc()).all()
+        )
+        rows_data = [row.to_dict() for row in rows]
+    else:
+        rows_data = []
     return jsonify({
         "token": token,
-        "rows": rows,
+        "rows": rows_data,
         "username": username
     })
 
@@ -243,7 +234,6 @@ def modify_equipment_link():
 
 @app.route('/add_equipment_link', methods=['POST'])
 def add_equipment_link():
-    # data = request.get_json()
     token = str(uuid.uuid4())
     session[token] = {}
     return jsonify({
@@ -252,7 +242,6 @@ def add_equipment_link():
 
 @app.route('/new_user_link', methods=['POST'])
 def new_user_link():
-    # data = request.get_json()
     token = str(uuid.uuid4())
     session[token] = {}
     return jsonify({
@@ -308,75 +297,82 @@ def login():
     if request.method == 'POST':
         username = request.form.get('username')
         password = request.form.get('password')
-        with DatabaseConnection() as connection:
-            cursor = connection.cursor()
-            cursor.execute("SELECT password_hash, PrimaryLab, userStatus, require_pwd_chg, last_pwd_chg FROM Users WHERE username = ?", (username,))
-            row = cursor.fetchone()
-            cursor.execute("SELECT lab_access, access_level FROM UsersLabAccess WHERE username = ?", (username,))
-            lab_access = cursor.fetchall()
-            session['labs'] = [r[0] for r in lab_access]
-            session['lab_access'] = [{'lab_access': r[0], 'access_level': r[1]} for r in lab_access]
-            failed_attempts = session.get('failed_attempts', 0)
-            if row:
-                userStatus = row[2]
-                require_pwd_chg = row[3]
-                last_pwd_chg = row[4]
-                pwd_expired = None
-                ### Set number of days for password expiration
-                if (last_pwd_chg) < (date.today() - timedelta(days=pwd_chg_days)):
-                    pwd_expired = True
-                else:
-                    pwd_expired = False
+        userinfo = Users.query.filter_by(username=username).first()
+        if userinfo:
+            passwordhash = userinfo.password_hash
+            primarylab = userinfo.PrimaryLab
+            userStatus = userinfo.userStatus
+            require_pwd_chg = userinfo.require_pwd_chg
+            last_pwd_chg = userinfo.last_pwd_chg
+            pwd_expired = None
+            if (last_pwd_chg) < (date.today() - timedelta(days=pwd_chg_days)):
+                pwd_expired = True
             else:
-                return render_template('login.html', error='Invalid Username')
-            if userStatus == 'Locked':
-                return render_template('login.html', error='Account locked. Contact your Manager.')
-            if userStatus == 'Disabled':
-                return render_template('login.html', error='Account disabled. Please contact your Manager.')
-            if row and check_password_hash(row[0], password):
-                if require_pwd_chg == 1:
-                    return redirect(url_for('password_change_link', username=username))
-                if pwd_expired is True:
-                    return redirect(url_for('password_change_link', username=username))
-                session['logged_in'] = True
-                session['ms_login'] = False
-                session['username'] = username
-                selected_access_level = None
-                for lab, access in lab_access:
-                    if lab == row[1]:
-                        selected_access_level = access
-                        break
-                session['access_level'] = selected_access_level
-                session['LabID'] = row[1]
-                cursor.execute("UPDATE Users SET LastLoginDate = GETDATE() WHERE username = ?", (username,))
-                connection.commit()
-                if session.get('access_level') in ['Administrator', 'Global Audit']:
-                    cursor.execute("SELECT LabID FROM Labs")
-                    session['lablist'] = [row[0] for row in cursor.fetchall()]
-                else:
-                    session['lablist'] = [session.get('LabID')]
-                cursor.execute("SELECT * FROM EquipClass")
-                session['classlist'] = [row[0] for row in cursor.fetchall()]
-                cursor.execute("SELECT Model FROM EquipModels")
-                session['modellist'] = [row[0] for row in cursor.fetchall()]
-                cursor.execute("SELECT equipStatus FROM EquipStatus")
-                session['statuslist'] = [row[0] for row in cursor.fetchall()]
-                cursor.execute("SELECT * FROM UserStatus")
-                session['userstatuslist'] = [row[0] for row in cursor.fetchall()]
-                cursor.execute("SELECT * FROM Access ORDER BY Hierarchy DESC")
-                session['access_list'] = [row[0] for row in cursor.fetchall()]
-                session['failed_attempts'] = 0
-                return redirect(url_for('index'))
+                pwd_expired = False
+        else:
+            return render_template('login.html', error='Invalid Username')
+        lab_access_info = UsersLabAccess.query.filter_by(username=username).all()
+        if lab_access_info:
+            session['labs'] = [row.lab_access for row in lab_access_info]
+            session['lab_access'] = [{'lab_access': row.lab_access, 'access_level': row.access_level} for row in lab_access_info]
+
+        failed_attempts = session.get('failed_attempts', 0)
+
+        if userStatus == 'Locked':
+            return render_template('login.html', error='Account locked. Contact your Manager.')
+        if userStatus == 'Disabled':
+            return render_template('login.html', error='Account disabled. Please contact your Manager.')
+        if userinfo and check_password_hash(passwordhash, password):
+            if require_pwd_chg == 1 or require_pwd_chg is True:
+                return redirect(url_for('password_change_link', username=username))
+            if pwd_expired is True:
+                return redirect(url_for('password_change_link', username=username))
+            session['logged_in'] = True
+            session['ms_login'] = False
+            session['username'] = username
+            selected_access_level = None
+            for item in session['lab_access']:
+                if item['lab_access'] == primarylab:
+                    selected_access_level = item['access_level']
+                    break
+            session['access_level'] = selected_access_level
+            session['LabID'] = primarylab
+            update_users = Users.query.filter_by(username=username).first()
+            if update_users:
+                update_users.LastLoginDate = datetime.now()
+                db.session.commit()
+            if session.get('access_level') in ['Administrator', 'Global Audit']:
+                session['lablist'] = [row.LabID for row in Labs.query.all()]
             else:
-                failed_attempts += 1
-                session['failed_attempts'] = failed_attempts
-                if failed_attempts >= 3:
-                    cursor.execute("UPDATE Users SET userStatus = 'Locked' WHERE username = ?", (username,))
-                    connection.commit()
-                    # audit(scope=username, eventtype='userStatus', initiatedby='SYSTEM', field='userStatus', oldvalue='Active', newvalue='Locked')
-                    audit(connection, 7, auditdata = {"scope": username, "initiatedby": "SYSTEM", "oldvalue": 'Active', "newvalue": 'Locked'})
-                    return render_template('login.html', error='Too many invalid login attempts. Account is now locked.')
-                return render_template('login.html', error='Invalid Password')
+                session['lablist'] = [session.get('LabID')]
+            session['classlist'] = [row.Equipment_Class for row in EquipClass.query.all()]
+            session['modellist'] = [row.Model for row in EquipModels.query.all()]
+            session['statuslist'] = [row.equipStatus for row in EquipStatus.query.all()]
+            session['userstatuslist'] = [row.userStatus for row in UserStatus.query.all()]
+            if session.get('access_level') in ['Manager', 'Local Audit']:
+                session['access_list'] = ['Local Audit', 'Manager', 'Technician']
+            else:
+                session['access_list'] = [row.access_level for row in Access.query.order_by(Access.Hierarchy.desc())]
+            session['failed_attempts'] = 0
+            return redirect(url_for('index'))
+        else:
+            failed_attempts += 1
+            session['failed_attempts'] = failed_attempts
+            if failed_attempts >= 3:
+                update_userstatus = Users.query.filter_by(username=username).first()
+                if update_userstatus:
+                    update_userstatus.userStatus = 'Locked'
+                    db.session.commit()
+                create_audit = emsAudit(
+                    Scope=username,
+                    EventType='userStatus',
+                    InitiatedBy='SYSTEM',
+                    EventDetails=f"userStatus changed from {'Active'} to {'Locked'}."
+                )
+                db.session.add(create_audit)
+                db.session.commit()
+                return render_template('login.html', error='Too many invalid login attempts. Account is now locked.')
+            return render_template('login.html', error='Invalid Password')
     else:
         session['failed_attempts'] = 0
         return render_template('login.html')
@@ -393,7 +389,6 @@ def login_microsoft():
 def auth_callback():
     token = oauth.microsoft.authorize_access_token()
     user = token.get('userinfo') or token.get('id_token_claims') or token
-    # user_groups = user.get('groups', [])
 
     access_token = token['access_token']
     group_ids = user.get('groups', [])
@@ -427,6 +422,7 @@ def auth_callback():
                         session['access_level'] = 'Technician'
                 session['LabID'] = group_name.split('.')[2]
                 session['labs'] = session['LabID']
+
     email = user.get('preferred_username') or user.get('email')
     if email and '@' in email:
         username = email.split('@')[0]
@@ -451,7 +447,6 @@ def auth_callback():
 @login_required
 def index():
     return render_template('index.html', active_page='index', access_level=session.get('access_level'), lablist=session.get('lablist'), classlist=session.get('classlist'), sessionTimeout_sec=sessionTimeout_sec)
-    # return render_template('index.html', active_page='index', access_level=session.get('access_level'), lablist=['MIWYO'], classlist=['Mill'], sessionTimeout_sec=sessionTimeout_sec)
 
 @app.route('/change_lab', methods=['POST'])
 @login_required
@@ -467,12 +462,6 @@ def change_lab():
     session['access_level'] = selected_access_level
     return redirect(request.referrer or url_for('index'))
 
-# Only use this route for dev as this will not redirect to microsoft logout endpoint
-# @app.route('/logout')
-# def logout():
-#     session.clear()
-#     return redirect(url_for('login'))
-
 @app.route('/logout')
 def logout():
     if session['ms_login'] == True:
@@ -484,7 +473,6 @@ def logout():
     else:
         session.clear()
         return redirect(url_for('login'))
-
 
 @app.route('/manage')
 @login_required
@@ -514,15 +502,8 @@ def users():
         lablist = session.get('lablist')
         access_list = session.get('access_list')
     else:
-        with DatabaseConnection() as connection:
-            cursor = connection.cursor()
-            # lablist = [session.get('LabID')]
-            cursor.execute("""SELECT u.lab_access
-                                FROM UsersLabAccess	u
-                                INNER JOIN Access a ON a.access_level=u.access_level
-                                WHERE u.username = ? AND a.Hierarchy > 2""", (session.get('username'),))
-            lablist = [row[0] for row in cursor.fetchall()]
-        access_list = ['Local Audit', 'Manager', 'Technician']
+        lablist = session.get('labs')
+        access_list = session.get('access_list')
     inactiveusertoggle = session.get('inactiveusertoggle') or 'False'
     return render_template('users.html', active_page='users', lablist=lablist, access_list=access_list, userstatuslist=session.get('userstatuslist'), access_level=session.get('access_level'), inactiveusertoggle=inactiveusertoggle, sessionTimeout_sec=sessionTimeout_sec)
 
@@ -534,21 +515,30 @@ def formsubmit():
     if not data:
         abort(403)
     record_num = data['record_num']
-    # model = data['model']
     if request.method == 'POST':
         completedby = request.form.get('completedby')
         checked = list(request.form.items())
-        with DatabaseConnection() as connection:
-            for key, value in checked:
-                form_order = key
-                if key in ['record_num', 'model', 'completedby', 'token', 'csrf_token']:
-                    continue
-                if value == 'on':
-                    response = 1
-                else:
-                    response = 0
-                read_query_execute(connection, 'create_form_response.sql', (record_num, form_order, response))
-            read_query_execute(connection, 'update_records_complete.sql', (completedby, record_num))
+        for key, value in checked:
+            form_order = key
+            if key in ['record_num', 'model', 'completedby', 'token', 'csrf_token']:
+                continue
+            if value == 'on':
+                response = 1
+            else:
+                response = 0
+            new_form_response = PM_Response(
+                Record_Num=record_num,
+                ID=form_order,
+                Response=response
+            )
+            db.session.add(new_form_response)
+            db.session.commit()
+        update_records_complete = Records.query.filter_by(Record_Num=record_num).first()
+        if update_records_complete:
+            update_records_complete.Record_Status = 'Complete'
+            update_records_complete.CompleteDate = datetime.now()
+            update_records_complete.CompletedBy = completedby
+            db.session.commit()
         return redirect(url_for('index'))
 
 @app.route('/modify_user', methods=['GET', 'POST'])
@@ -559,7 +549,6 @@ def modify_user():
     data = session.get(token)
     if not data:
         abort(403)
-    hidden_username = request.form.get('hidden_username')
     username = data['username']
     new_username = request.form.get('new_username')
     firstname = data['FirstName']
@@ -568,7 +557,6 @@ def modify_user():
     new_lastname = request.form.get('new_lastname')
     new_password = request.form.get('new_password')
     new_accesslevel = request.form.get('new_accesslevel')
-    new_labaccess = request.form.get('new_labaccess')
     new_primarylab = request.form.get('new_primarylab')
     new_userstatus = request.form.get('new_userstatus')
     req_pwd_chg = request.form.get('req-pwd-chg')
@@ -581,39 +569,55 @@ def modify_user():
     PrimaryLab = data['PrimaryLab']
     userStatus = data['userStatus']
     if request.method == 'POST':
-        with DatabaseConnection() as connection:
-            cursor = connection.cursor()
-            if new_password:
-                password_hash = generate_password_hash(new_password)
-                cursor.execute("UPDATE Users SET password_hash = ? WHERE username = ?", (password_hash,username,))
-                connection.commit()
-            if not new_username:
-                cursor.execute("UPDATE Users SET userStatus = ?, require_pwd_chg = ? WHERE username = ?", (new_userstatus, req_pwd_chg, hidden_username,))
-                connection.commit()
-            else:
-                params = (
-                    new_accesslevel, username, PrimaryLab,
-                    new_primarylab, new_username, new_firstname, new_lastname, new_userstatus, req_pwd_chg, username
-                )
-                read_query_execute(connection, 'update_user.sql', params)
-            if new_username and new_username != username:
-                # audit(scope=username, eventtype='userModify', initiatedby=session.get('username'), field='username', oldvalue=username, newvalue=new_username)
-                audit(connection, 6, auditdata = {"scope": username, "initiatedby": session.get('username'), "oldvalue": username, "newvalue": new_username, "field": "username"})
-            if new_accesslevel and new_accesslevel != access_level:
-                # audit(scope=username, eventtype='userModify', initiatedby=session.get('username'), field='access_level', oldvalue=access_level, newvalue=new_accesslevel)
-                audit(connection, 6, auditdata = {"scope": username, "initiatedby": session.get('username'), "oldvalue": access_level, "newvalue": new_accesslevel, "field": "access_level"})
-            if new_primarylab and new_primarylab != PrimaryLab:
-                # audit(scope=username, eventtype='userModify', initiatedby=session.get('username'), field='PrimaryLab', oldvalue=PrimaryLab, newvalue=new_primarylab)
-                audit(connection, 6, auditdata = {"scope": username, "initiatedby": session.get('username'), "oldvalue": PrimaryLab, "newvalue": new_primarylab, "field": "PrimaryLab"})
-            if new_userstatus and new_userstatus != userStatus:
-                audit(connection, 7, auditdata = {"scope": username, "initiatedby": session.get('username'), "oldvalue": userStatus, "newvalue": new_userstatus})
-                # audit(scope=username, eventtype='userStatus', initiatedby=session.get('username'), field='userStatus', oldvalue=userStatus, newvalue=new_userstatus)
-            if new_firstname and new_firstname != firstname:
-                # audit(scope=username, eventtype='userModify', initiatedby=session.get('username'), field='FirstName', oldvalue=firstname, newvalue=new_firstname)
-                audit(connection, 6, auditdata = {"scope": username, "initiatedby": session.get('username'), "oldvalue": firstname, "newvalue": new_firstname, "field": "FirstName"})
-            if new_lastname and new_lastname != lastname:
-                # audit(scope=username, eventtype='userModify', initiatedby=session.get('username'), field='LastName', oldvalue=lastname, newvalue=new_lastname)
-                audit(connection, 6, auditdata = {"scope": username, "initiatedby": session.get('username'), "oldvalue": lastname, "newvalue": new_lastname, "field": "LastName"})
+        if new_password:
+            password_hash = generate_password_hash(new_password)
+            update_user_password = Users.query.filter_by(username=username).first()
+            if update_user_password:
+                update_user_password.password_hash = password_hash
+                db.session.commit()
+        if not new_username:
+            update_user_details = Users.query.filter_by(username=username)
+            if update_user_details:
+                update_user_details.userStatus = new_userstatus
+                update_user_details.require_pwd_chg = req_pwd_chg
+                db.session.commit()
+        else:
+            update_useraccess = UsersLabAccess.query.filter_by(username=username, lab_access=PrimaryLab).first()
+            update_useraccess.access_level = new_accesslevel if update_useraccess else None
+            db.session.commit()
+            update_user = Users.query.filter_by(username=username).first()
+            if update_user:
+                update_user.PrimaryLab = new_primarylab
+                update_user.username = new_username
+                update_user.FirstName = new_firstname
+                update_user.LastName = new_lastname
+                update_user.userStatus = new_userstatus
+                update_user.require_pwd_chg = req_pwd_chg
+                db.session.commit()
+        if new_username and new_username != username:
+            create_audit = emsAudit(Scope=username, EventType='userModify', InitiatedBy=session.get('username'), EventDetails=f"username changed from {username} to {new_username}.")
+            db.session.add(create_audit)
+            db.session.commit()
+        if new_accesslevel and new_accesslevel != access_level:
+            create_audit = emsAudit(Scope=username, EventType='userModify', InitiatedBy=session.get('username'), EventDetails=f"access_level changed from {access_level} to {new_accesslevel}.")
+            db.session.add(create_audit)
+            db.session.commit()
+        if new_primarylab and new_primarylab != PrimaryLab:
+            create_audit = emsAudit(Scope=username, EventType='userModify', InitiatedBy=session.get('username'), EventDetails=f"PrimaryLab changed from {PrimaryLab} to {new_primarylab}.")
+            db.session.add(create_audit)
+            db.session.commit()
+        if new_userstatus and new_userstatus != userStatus:
+            create_audit = emsAudit(Scope=username, EventType='userModify', InitiatedBy=session.get('username'), EventDetails=f"userStatus changed from {userStatus} to {new_userstatus}.")
+            db.session.add(create_audit)
+            db.session.commit()
+        if new_firstname and new_firstname != firstname:
+            create_audit = emsAudit(Scope=username, EventType='userModify', InitiatedBy=session.get('username'), EventDetails=f"firstname changed from {firstname} to {new_firstname}.")
+            db.session.add(create_audit)
+            db.session.commit()
+        if new_lastname and new_lastname != lastname:
+            create_audit = emsAudit(Scope=username, EventType='userModify', InitiatedBy=session.get('username'), EventDetails=f"lastname changed from {lastname} to {new_lastname}.")
+            db.session.add(create_audit)
+            db.session.commit()
         data['username'] = new_username
         data['FirstName'] = new_firstname
         data['LastName'] = new_lastname
@@ -621,9 +625,7 @@ def modify_user():
         data['PrimaryLab'] = new_primarylab
         data['userStatus'] = new_userstatus
         session[token] = data
-        return redirect(url_for('users', token=token))
-        # return render_template('form_result.html', checked=checked, username=username, current_username=current_username, new_username=new_username, new_access_level=new_access_level, back_url=url_for('users'), back_text='Back to Users', right_list_values=right_list_values)
-        
+        return redirect(url_for('users', token=token))        
     return render_template('users.html', userstatuslist=session.get('userstatuslist'), lablist=session.get('lablist'), access_list=session.get('access_list'), username=username, lab_access=lab_access, PrimaryLab=PrimaryLab, access_level=access_level, userStatus=userStatus, token=token)
 
 @app.route('/get_user_lab_access', methods=['POST'])
@@ -632,16 +634,14 @@ def modify_user():
 def get_user_lab_access():
     data = request.get_json()
     username = data.get('username')
-    with DatabaseConnection() as connection:
-        cursor = connection.cursor()
-        cursor.execute("SELECT lab_access, access_level FROM UsersLabAccess WHERE username = ?", (username,))
-        rows = cursor.fetchall()
-        if session.get('access_level') == 'Administrator':
-            server_accesslevels = session.get('access_list')
-        else:
-            server_accesslevels = ['Local Audit', 'Manager', 'Technician']
-    user_labs = [row[0] for row in rows]
-    user_lab_access = {row[0]: row[1] for row in rows}
+    lab_access_info = UsersLabAccess.query.filter_by(username=username).all()
+    if lab_access_info:
+        user_labs = [row.lab_access for row in lab_access_info]
+        user_lab_access = {row.lab_access: row.access_level for row in lab_access_info}
+    if session.get('access_level') == 'Administrator':
+        server_accesslevels = session.get('access_list')
+    else:
+        server_accesslevels = ['Local Audit', 'Manager', 'Technician']
     return jsonify({
         "user_labs": user_labs,
         "user_lab_access": user_lab_access,
@@ -655,36 +655,38 @@ def modify_user_labs():
     username = request.form.get('username')
     labs = request.form.getlist('labs[]')
     access_levels = request.form.getlist('access_levels[]')
-    with DatabaseConnection() as connection:
-        cursor = connection.cursor()
-        cursor.execute("SELECT lab_access, access_level FROM UsersLabAccess WHERE username = ?", (username,))
-        rows_as_tuples = [tuple(row) for row in cursor.fetchall()]
-        # Delete current access
-        cursor.execute("DELETE FROM UsersLabAccess WHERE username = ?", (username,))
-        connection.commit()
-        newlabaccess = []
-        # Grant new access
-        for lab, access in zip(labs, access_levels):
-            cursor.execute("INSERT INTO UsersLabAccess (username, lab_access, access_level) VALUES (?, ?, ?)", 
-                        (username, lab, access))
-            connection.commit()
-            newlabaccess.extend([(lab,access)])
-        # Create audit event only for new access granted
-        for item in newlabaccess:
-            if item not in rows_as_tuples:
-                newlab = item[0]
-                newaccess = item[1]
-                # audit(scope=username, eventtype='userLabAccess', initiatedby=session.get('username'), 
-                #     field='Lab Access', oldvalue='', newvalue=f"'{newaccess}' access granted for {newlab} lab.")
-                audit(connection, 8, auditdata = {"scope": username, "initiatedby": session.get('username'), "access": newaccess, "lab": newlab})
-        # Create audit event only for new access revoked
-        for item in rows_as_tuples:
-                if item not in newlabaccess:
-                    oldlab = item[0]
-                    oldaccess = item[1]
-                    # audit(scope=username, eventtype='userLabAccess', initiatedby=session.get('username'), 
-                    # field='Lab Access', oldvalue='', newvalue=f"'{oldaccess}' access revoked for {oldlab} lab.")
-                    audit(connection, 9, auditdata = {"scope": username, "initiatedby": session.get('username'), "access": oldaccess, "lab": oldlab})
+    lab_access_info = UsersLabAccess.query.filter_by(username=username).all()
+    if lab_access_info:
+        rows_as_tuples = [(row.lab_access, row.access_level) for row in lab_access_info]
+    UsersLabAccess.query.filter_by(username=username).delete()
+    db.session.commit()
+    newlabaccess = []
+    # Grant new access
+    for lab, access in zip(labs, access_levels):
+        create_useraccess = UsersLabAccess(
+            username=username,
+            lab_access=lab,
+            access_level=access
+        )
+        db.session.add(create_useraccess)
+        db.session.commit()
+        newlabaccess.extend([(lab,access)])
+    # Create audit event only for new access granted
+    for item in newlabaccess:
+        if item not in rows_as_tuples:
+            newlab = item[0]
+            newaccess = item[1]
+            create_audit = emsAudit(Scope=username, EventType='userLabAccess', InitiatedBy=session.get('username'), EventDetails=f"{newaccess} granted for {newlab}.")
+            db.session.add(create_audit)
+            db.session.commit()
+    # Create audit event only for new access revoked
+    for item in rows_as_tuples:
+        if item not in newlabaccess:
+            oldlab = item[0]
+            oldaccess = item[1]
+            create_audit = emsAudit(Scope=username, EventType='userLabAccess', InitiatedBy=session.get('username'), EventDetails=f"{oldaccess} revoked for {oldlab}.")
+            db.session.add(create_audit)
+            db.session.commit()
     return redirect(url_for('users'))
 
 @app.route('/modify_equipment', methods = ['GET', 'POST'])
@@ -704,20 +706,49 @@ def modify_equipment():
     new_model = request.form.get('new_model')
     new_status = request.form.get('new_status')
     if request.method == 'POST':
-        with DatabaseConnection() as connection:
-            read_query_execute(connection, 'update_equipment.sql', (new_serialnum, new_labid, new_model, new_status, Serial_Num))
-            if new_serialnum and new_serialnum != Serial_Num:
-                # audit(scope=Serial_Num, eventtype='equipmentModify', initiatedby=session.get('username'), field='Serial_Num', oldvalue=Serial_Num, newvalue=new_serialnum)
-                audit(connection, 2, auditdata = {"scope": Serial_Num, "initiatedby": session.get('username'), "oldvalue": Serial_Num, "newvalue": new_serialnum, "field": "Serial_Num"})
-            if new_labid and new_labid != LabID:
-                # audit(scope=Serial_Num, eventtype='equipmentModify', initiatedby=session.get('username'), field='LabID', oldvalue=LabID, newvalue=new_labid)
-                audit(connection, 2, auditdata = {"scope": Serial_Num, "initiatedby": session.get('username'), "oldvalue": LabID, "newvalue": new_labid, "field": "LabID"})
-            if new_model and new_model != Model:
-                # audit(scope=Serial_Num, eventtype='equipmentModify', initiatedby=session.get('username'), field='Model', oldvalue=Model, newvalue=new_model)
-                audit(connection, 2, auditdata = {"scope": Serial_Num, "initiatedby": session.get('username'), "oldvalue": Model, "newvalue": new_model, "field": "Model"})
-            if new_status and new_status != equipStatus:
-                # audit(scope=Serial_Num, eventtype='equipmentModify', initiatedby=session.get('username'), field='equipStatus', oldvalue=equipStatus, newvalue=new_status)
-                audit(connection, 2, auditdata = {"scope": Serial_Num, "initiatedby": session.get('username'), "oldvalue": equipStatus, "newvalue": new_status, "field": "equipStatus"})
+        update_equipment = EquipByLab.query.filter_by(Serial_Num=Serial_Num).first()
+        if update_equipment:
+            update_equipment.Serial_Num=new_serialnum
+            update_equipment.LabID=new_labid
+            update_equipment.Model=new_model
+            update_equipment.equipStatus=new_status
+            db.session.commit()
+        if new_serialnum and new_serialnum != Serial_Num:
+            create_audit = emsAudit(
+                Scope=Serial_Num,
+                EventType='equipmentModify',
+                InitiatedBy=session.get('username'),
+                EventDetails=f"Serial_Num changed from {Serial_Num} to {new_serialnum}."
+            )
+            db.session.add(create_audit)
+            db.session.commit()
+        if new_labid and new_labid != LabID:
+            create_audit = emsAudit(
+                Scope=LabID,
+                EventType='equipmentModify',
+                InitiatedBy=session.get('username'),
+                EventDetails=f"LabID changed from {LabID} to {new_labid}."
+            )
+            db.session.add(create_audit)
+            db.session.commit()
+        if new_model and new_model != Model:
+            create_audit = emsAudit(
+                Scope=Model,
+                EventType='equipmentModify',
+                InitiatedBy=session.get('username'),
+                EventDetails=f"Model changed from {Model} to {new_model}."
+            )
+            db.session.add(create_audit)
+            db.session.commit()
+        if new_status and new_status != equipStatus:
+            create_audit = emsAudit(
+                Scope=equipStatus,
+                EventType='equipmentModify',
+                InitiatedBy=session.get('username'),
+                EventDetails=f"equipStatus changed from {equipStatus} to {new_status}."
+            )
+            db.session.add(create_audit)
+            db.session.commit()
         data['Serial_Num'] = new_serialnum
         data['LabID'] = new_labid
         data['Model'] = new_model
@@ -739,14 +770,14 @@ def add_equipment():
     new_model = request.form.get('new_model')
     new_status = request.form.get('new_status')
     if request.method == 'POST':
-        with DatabaseConnection() as connection:
-            read_query_execute(connection, 'create_equipment.sql', (new_serialnum, new_model, new_labid, new_status))
-            # audit(scope=new_serialnum, eventtype='equipmentCreate', initiatedby=session.get('username'), field='equipment')
-            audit(connection, 1, auditdata = {"scope": new_serialnum, "initiatedby": session.get('username'), "newvalue": new_serialnum})
-            # data['Serial_Num'] = new_serialnum
-            # data['LabID'] = new_labid
-            # data['Model'] = new_model
-            # data['equipStatus'] = new_status
+        new_equipment = EquipByLab(
+            Serial_Num=new_serialnum,
+            Model=new_model,
+            LabID=new_labid,
+            equipStatus=new_status
+        )
+        db.session.add(new_equipment)
+        db.session.commit()
         session[token] = data
         return redirect(url_for('manage'))
     return render_template('manage.html', active_page='manage', token=token)
@@ -766,20 +797,29 @@ def new_user():
     new_accesslevel = request.form.get('new_accesslevel')
     new_primarylab = request.form.get('new_primarylab')
     if request.method == 'POST':
-        with DatabaseConnection() as connection:
-            password_hash = generate_password_hash(new_password)
-            params = (
-                new_username, password_hash, new_primarylab, new_firstname, new_lastname,
-                'Active', 1, date.today(), new_username, new_primarylab, new_accesslevel
-            )
-            read_query_execute(connection, 'create_user.sql', params)
-            # audit(scope=new_username, eventtype='userCreate', initiatedby=session.get('username'), field='user')
-            audit(connection, 5, auditdata = {"scope": new_username, "initiatedby": session.get('username'), "newvalue": new_username})
-            # data['username'] = new_username
-            # data['access_level'] = new_accesslevel
-            # data['Model'] = new_model
-            # data['equipStatus'] = new_status
-            # session[token] = data
+        password_hash = generate_password_hash(new_password)
+        create_user = Users(
+            username=new_username,
+            password_hash=password_hash,
+            PrimaryLab=new_primarylab,
+            Firstname=new_firstname,
+            LastName=new_lastname,
+            userStatus='Active',
+            require_pwd_chg=1,
+            last_pwd_chg=date.today()
+        )
+        db.session.add(create_user)
+        db.session.commit()
+        create_useraccess = UsersLabAccess(
+            username=new_username,
+            lab_access=new_primarylab,
+            access_level=new_accesslevel
+        )
+        db.session.add(create_useraccess)
+        db.session.commit()
+        create_audit = emsAudit(Scope=new_username, EventType='userCreate', InitiatedBy=session.get('username'), EventDetails=f"New user created: {new_username}.")
+        db.session.add(create_audit)
+        db.session.commit()
         return redirect(url_for('users'))
     return render_template('users.html', active_page='users', token=token)
 
@@ -795,10 +835,21 @@ def add_model():
     new_manufacturer = request.form.get('new_manufacturer')
     new_equipmentclass = request.form.get('new_equipmentclass')
     if request.method == 'POST':
-        with DatabaseConnection() as connection:
-            read_query_execute(connection, 'create_model.sql', (new_model, new_manufacturer, new_equipmentclass))
-            # audit(scope=new_model, eventtype='modelCreate', initiatedby=session.get('username'), field='model')
-            audit(connection, 3, auditdata = {"scope": new_model, "initiatedby": session.get('username'), "newvalue": new_model})
+        create_model = EquipModels(
+            Model=new_model,
+            Manufacturer=new_manufacturer,
+            Equipment_Class=new_equipmentclass
+        )
+        db.session.add(create_model)
+        db.session.commit()
+        create_audit = emsAudit(
+            Scope=new_model,
+            EventType='modelCreate',
+            InitiatedBy=session.get('username'),
+            EventDetails=f"New model created: {new_model}."
+        )
+        db.session.add(create_audit)
+        db.session.commit()
         data['Model'] = new_model
         data['Manufacturer'] = new_manufacturer
         data['Equipment_Class'] = new_equipmentclass
@@ -815,39 +866,52 @@ def get_PMs_due():
     frequency = data.get('frequency')
     labid = data.get('labid')
     equipment_class = data.get('class')
-    with DatabaseConnection() as connection:
-        if session.get('access_level') not in ['Administrator', 'Global Audit']:
-            labid = session.get('LabID')
-        has_lab_filter = labid and (labid != 'All Labs' or session.get('access_level') not in ['Administrator', 'Global Audit'])
-        has_class_filter = equipment_class and equipment_class != 'All Classes'
-        params = []
-        match (bool(has_lab_filter), bool(has_class_filter)):
-            case (True, True):
-                query_file = 'get_PMs_due_by_lab_and_class.sql'
-                params.extend([frequency, labid, equipment_class])
-            case (True, False):
-                query_file = 'get_PMs_due_by_lab.sql'
-                params.extend([frequency, labid])
-            case (False, True):
-                query_file = 'get_PMs_due_by_class.sql'
-                params.extend([frequency, equipment_class])
-            case (False, False):
-                query_file = 'get_PMs_due.sql'
-                params.append(frequency)
-        # if has_lab_filter and has_class_filter:
-        #     query_file = 'get_PMs_due_by_lab_and_class.sql'
-        #     params.extend([frequency, labid, equipment_class])
-        # elif has_lab_filter:
-        #     query_file = 'get_PMs_due_by_lab.sql'
-        #     params.extend([frequency, labid])
-        # elif has_class_filter:
-        #     query_file = 'get_PMs_due_by_class.sql'
-        #     params.extend([frequency, equipment_class])
-        # else:
-        #     query_file = 'get_PMs_due.sql'
-        #     params.append(frequency)
-        results = read_query_get(connection, query_file, params)
-    return {'results': results}
+    if session.get('access_level') not in ['Administrator', 'Global Audit']:
+        labid = session.get('LabID')
+    has_lab_filter = labid and (labid != 'All Labs' or session.get('access_level') not in ['Administrator', 'Global Audit'])
+    has_class_filter = equipment_class and equipment_class != 'All Classes'
+    match (bool(has_lab_filter), bool(has_class_filter)):
+        case (True, True):
+            rows = (
+                db.session.query(Records.Record_Num, EquipByLab.LabID, Records.Serial_Num, EquipByLab.Model, EquipModels.Equipment_Class, Records.Due_Date_Start, Records.Due_Date_End)
+                .join(EquipByLab, Records.Serial_Num == EquipByLab.Serial_Num)
+                .join(EquipModels, EquipByLab.Model == EquipModels.Model)
+                .filter(Records.Frequency == frequency, Records.Record_Status != 'Complete', EquipModels.Equipment_Class == equipment_class, Records.LabID == labid).all()
+            )
+            results_list = [dict(zip([
+                'Record_Num', 'LabID', 'Serial_Num', 'Model', 'Equipment_Class', 'Due_Date_Start', 'Due_Date_End'
+                ], row)) for row in rows]
+        case (True, False):
+            rows = (
+                db.session.query(Records.Record_Num, EquipByLab.LabID, Records.Serial_Num, EquipByLab.Model, EquipModels.Equipment_Class, Records.Due_Date_Start, Records.Due_Date_End)
+                .join(EquipByLab, Records.Serial_Num == EquipByLab.Serial_Num)
+                .join(EquipModels, EquipByLab.Model == EquipModels.Model)
+                .filter(Records.Frequency == frequency, Records.Record_Status != 'Complete', Records.LabID == labid).all()
+            )
+            results_list = [dict(zip([
+                'Record_Num', 'LabID', 'Serial_Num', 'Model', 'Equipment_Class', 'Due_Date_Start', 'Due_Date_End'
+                ], row)) for row in rows]
+        case (False, True):
+            rows = (
+                db.session.query(Records.Record_Num, EquipByLab.LabID, Records.Serial_Num, EquipByLab.Model, EquipModels.Equipment_Class, Records.Due_Date_Start, Records.Due_Date_End)
+                .join(EquipByLab, Records.Serial_Num == EquipByLab.Serial_Num)
+                .join(EquipModels, EquipByLab.Model == EquipModels.Model)
+                .filter(Records.Frequency == frequency, Records.Record_Status != 'Complete', EquipModels.Equipment_Class == equipment_class).all()
+            )
+            results_list = [dict(zip([
+                'Record_Num', 'LabID', 'Serial_Num', 'Model', 'Equipment_Class', 'Due_Date_Start', 'Due_Date_End'
+                ], row)) for row in rows]
+        case (False, False):
+            rows = (
+                db.session.query(Records.Record_Num, EquipByLab.LabID, Records.Serial_Num, EquipByLab.Model, EquipModels.Equipment_Class, Records.Due_Date_Start, Records.Due_Date_End)
+                .join(EquipByLab, Records.Serial_Num == EquipByLab.Serial_Num)
+                .join(EquipModels, EquipByLab.Model == EquipModels.Model)
+                .filter(Records.Frequency == frequency, Records.Record_Status != 'Complete').all()
+            )
+            results_list = [dict(zip([
+                'Record_Num', 'LabID', 'Serial_Num', 'Model', 'Equipment_Class', 'Due_Date_Start', 'Due_Date_End'
+                ], row)) for row in rows]
+    return {'results': results_list}
 
 @app.route('/get_users', methods = ['POST'])
 @login_required
@@ -858,39 +922,50 @@ def get_users():
     data = request.get_json()
     labid = data.get('labid')
     session['inactiveusertoggle'] = data.get('inactiveusertoggle')
-    with DatabaseConnection() as connection:
-        if session.get('access_level') not in ['Administrator', 'Global Audit']:
-            labid = session.get('LabID')
-        query_params = {}
-        has_lab_filter = labid and (labid != 'All Labs' or session.get('access_level') not in ['Administrator', 'Global Audit'])
-        params = []
-        match (bool(has_lab_filter), session['inactiveusertoggle']):
-            case (True, 'False'):
-                query_file = 'get_users_by_lab_active.sql'
-                params.append(labid)
-            case (True, 'True'):
-                query_file = 'get_users_by_lab_inactive.sql'
-                params.append(labid)
-            case (False, 'False'):
-                query_file = 'get_users_active.sql'
-            case (False, 'True'):
-                query_file = 'get_users_inactive.sql'
-        # if has_lab_filter:
-        #     if session['inactiveusertoggle'] == 'False':
-        #         query_file = 'get_users_by_lab_active.sql'
-        #         params.append(labid)
-        #     else:
-        #         query_file = 'get_users_by_lab_inactive.sql'
-        #         params.append(labid)
-        # else:
-        #     if session['inactiveusertoggle'] == 'False':
-        #         query_file = 'get_users_active.sql'
-        #     else:
-        #         query_file = 'get_users_inactive.sql'
-        if params:
-            results = read_query_get(connection, query_file, params)
-        else:
-            results = read_query_get(connection, query_file)
+    if session.get('access_level') not in ['Administrator', 'Global Audit']:
+        labid = session.get('LabID')
+    query_params = {}
+    has_lab_filter = labid and (labid != 'All Labs' or session.get('access_level') not in ['Administrator', 'Global Audit'])
+    params = []
+    match (bool(has_lab_filter), session['inactiveusertoggle']):
+        case (True, 'False'):
+            rows = (
+                db.session.query(UsersLabAccess.username, UsersLabAccess.access_level, UsersLabAccess.lab_access, Users.FirstName, Users.LastName,
+                                    Users.PrimaryLab, Users.LastLoginDate, Users.userStatus, Users.require_pwd_chg)
+                                    .join(Users, Users.username == UsersLabAccess.username)
+                                    .join(Access, Access.access_level == UsersLabAccess.access_level)
+                                    .filter(UsersLabAccess.lab_access == labid, Access.Hierarchy > 2, Users.userStatus != 'Disabled').all()
+            )
+            results = [dict(zip(['username', 'access_level', 'lab_access', 'FirstName', 'LastName', 'PrimaryLab',
+                                'LastLoginDate', 'userStatus', 'require_pwd_chg'], row)) for row in rows]
+        case (True, 'True'):
+            rows = (
+                db.session.query(UsersLabAccess.username, UsersLabAccess.access_level, UsersLabAccess.lab_access, Users.FirstName, Users.LastName,
+                                    Users.PrimaryLab, Users.LastLoginDate, Users.userStatus, Users.require_pwd_chg)
+                                    .join(Users, Users.username == UsersLabAccess.username)
+                                    .join(Access, Access.access_level == UsersLabAccess.access_level)
+                                    .filter(UsersLabAccess.lab_access == labid, Access.Hierarchy > 2, Users.userStatus == 'Disabled').all()
+            )
+            results = [dict(zip(['username', 'access_level', 'lab_access', 'FirstName', 'LastName', 'PrimaryLab',
+                                'LastLoginDate', 'userStatus', 'require_pwd_chg'], row)) for row in rows]
+        case (False, 'False'):
+            rows = (
+                db.session.query(UsersLabAccess.username, UsersLabAccess.access_level, UsersLabAccess.lab_access, Users.FirstName, Users.LastName,
+                                    Users.PrimaryLab, Users.LastLoginDate, Users.userStatus, Users.require_pwd_chg)
+                                    .join(Users, Users.username == UsersLabAccess.username)
+                                    .filter(UsersLabAccess.lab_access == Users.PrimaryLab, Users.userStatus != 'Disabled').all()
+            )
+            results = [dict(zip(['username', 'access_level', 'lab_access', 'FirstName', 'LastName', 'PrimaryLab',
+                                'LastLoginDate', 'userStatus', 'require_pwd_chg'], row)) for row in rows]
+        case (False, 'True'):
+            rows = (
+                db.session.query(UsersLabAccess.username, UsersLabAccess.access_level, UsersLabAccess.lab_access, Users.FirstName, Users.LastName,
+                                    Users.PrimaryLab, Users.LastLoginDate, Users.userStatus, Users.require_pwd_chg)
+                                    .join(Users, Users.username == UsersLabAccess.username)
+                                    .filter(UsersLabAccess.lab_access == Users.PrimaryLab, Users.userStatus == 'Disabled').all()
+            )
+            results = [dict(zip(['username', 'access_level', 'lab_access', 'FirstName', 'LastName', 'PrimaryLab',
+                                'LastLoginDate', 'userStatus', 'require_pwd_chg'], row)) for row in rows]
     return {'results': results}
 
 @app.route('/get_equipment', methods = ['POST'])
@@ -903,96 +978,111 @@ def get_equipment():
     session['inactivetoggle'] = data.get('inactivetoggle')
     equipment_class = data.get('class')
     labid = data.get('labid')
-    with DatabaseConnection() as connection:
-        params = []
-        if session.get('access_level') not in ['Administrator', 'Global Audit']:
-            labid = session.get('LabID')
-        has_lab_filter = labid and labid != 'All Labs'
-        has_class_filter = equipment_class and equipment_class != 'All Classes'
-        is_admin_ga = session['access_level'] in ['Administrator', 'Global Audit']
-        is_manager_la = session['access_level'] in ['Manager', 'Local Audit']
-        match (bool(is_admin_ga), bool(is_manager_la), bool(has_lab_filter), bool(has_class_filter), session['inactivetoggle']):
-            case (True, False, True, True, 'False'):
-                query_file = 'get_equipment_active_labclass.sql'
-                params.extend([equipment_class, labid])
-            case (True, False, True, False, 'False'):
-                query_file = 'get_equipment_active_lab.sql'
-                params.append(labid)
-            case (True, False, False, True, 'False'):
-                query_file = 'get_equipment_active_class.sql'
-                params.extend([equipment_class])
-            case (True, False, False, False, 'False'):
-                query_file = 'get_equipment_active.sql'
-            case (True, False, True, True, 'True'):
-                query_file = 'get_equipment_inactive_labclass.sql'
-                params.extend([labid, equipment_class])
-            case (True, False, True, False, 'True'):
-                query_file = 'get_equipment_inactive_lab.sql'
-                params.append(labid)
-            case (True, False, False, True, 'True'):
-                query_file = 'get_equipment_inactive_class.sql'
-                params.append(equipment_class)
-            case (True, False, False, False, 'True'):
-                query_file = 'get_equipment_inactive.sql'
-            case (False, True, True, True, 'False'):
-                query_file = 'get_equipment_by_lab_active_class.sql'
-                params.extend([labid, equipment_class])
-            case (False, True, True, False, 'False'):
-                query_file = 'get_equipment_by_lab_active.sql'
-                params.append(labid)
-            case (False, True, True, True, 'True'):
-                query_file = 'get_equipment_by_lab_inactive_class.sql'
-                params.extend([labid, equipment_class])
-            case (False, True, True, False, 'True'):
-                query_file = 'get_equipment_by_lab_inactive.sql'
-                params.append(labid)
-        # if session['access_level'] in ['Administrator', 'Global Audit']:
-            # if session['inactivetoggle'] == 'False':
-            #     if has_lab_filter and has_class_filter:
-            #         query_file = 'get_equipment_active_labclass.sql'
-            #         params.extend([equipment_class, labid])
-            #     elif has_lab_filter:
-            #         query_file = 'get_equipment_active_lab.sql'
-            #         params.append(labid)
-            #     elif has_class_filter:
-            #         query_file = 'get_equipment_active_class.sql'
-            #         params.extend([equipment_class])
-            #     else:
-            #         query_file = 'get_equipment_active.sql'
-            # else:
-            #     if has_lab_filter and has_class_filter:
-            #         query_file = 'get_equipment_inactive_labclass.sql'
-            #         params.extend([labid, equipment_class])
-            #     elif has_lab_filter:
-            #         query_file = 'get_equipment_inactive_lab.sql'
-            #         params.append(labid)
-            #     elif has_class_filter:
-            #         query_file = 'get_equipment_inactive_class.sql'
-            #         params.append(equipment_class)
-            #     else:
-            #         query_file = 'get_equipment_inactive.sql'
-        # elif session['access_level'] in ['Manager', 'Local Audit']:
-        #     if session['inactivetoggle'] == 'False':
-        #         if has_class_filter:
-        #             query_file = 'get_equipment_by_lab_active_class.sql'
-        #             params.extend([labid, equipment_class])
-        #         else:
-        #             query_file = 'get_equipment_by_lab_active.sql'
-        #             params.append(labid)
-        #     else:
-        #         query_file = 'get_equipment_by_lab_inactive.sql'
-        #         params.append(labid)
-        #         if has_class_filter:
-        #             query_file = 'get_equipment_by_lab_inactive_class.sql'
-        #             params.extend([labid, equipment_class])
-        #         else:
-        #             query_file = 'get_equipment_by_lab_inactive.sql'
-        #             params.append(labid)
-        if params:
-            results = read_query_get(connection, query_file, params)
-        else:
-            results = read_query_get(connection, query_file)
-    return {'results': results}
+    if session.get('access_level') not in ['Administrator', 'Global Audit']:
+        labid = session.get('LabID')
+    has_lab_filter = labid and labid != 'All Labs'
+    has_class_filter = equipment_class and equipment_class != 'All Classes'
+    is_admin_ga = session['access_level'] in ['Administrator', 'Global Audit']
+    is_manager_la = session['access_level'] in ['Manager', 'Local Audit']
+    
+    match (bool(is_admin_ga), bool(is_manager_la), bool(has_lab_filter), bool(has_class_filter), session['inactivetoggle']):
+        case (True, False, True, True, 'False') | (False, True, True, True, 'False'):
+            get_equipment_active_labclass = (
+                db.session.query(EquipByLab.Serial_Num, EquipByLab.Model, EquipModels.Manufacturer, EquipModels.Equipment_Class,
+                    EquipByLab.LabID, EquipByLab.Created_Date, EquipModels.PM_Req_Daily, EquipModels.PM_Req_Weekly,
+                    EquipModels.PM_Req_Monthly, EquipModels.PM_Req_Quarterly, EquipModels.PM_Req_Annual, EquipByLab.equipStatus)
+                .join(EquipModels, EquipByLab.Model == EquipModels.Model)
+                .filter(~EquipByLab.equipStatus.in_(['Retired Offsite', 'Retired onsite']), EquipModels.Equipment_Class == equipment_class, EquipByLab.LabID == labid).all()
+            )
+            results_list = [dict(zip(
+                ['Serial_Num', 'Model', 'Manufacturer', 'Equipment_Class', 'LabID', 'Created_Date',
+                'PM_Req_Daily', 'PM_Req_Weekly', 'PM_Req_Monthly', 'PM_Req_Quarterly', 'PM_Req_Annual', 'equipStatus'
+                ], row)) for row in get_equipment_active_labclass]
+        case (True, False, True, False, 'False') | (False, True, True, False, 'False'):
+            get_equipment_active_lab = (
+                db.session.query(EquipByLab.Serial_Num, EquipByLab.Model, EquipModels.Manufacturer, EquipModels.Equipment_Class,
+                    EquipByLab.LabID, EquipByLab.Created_Date, EquipModels.PM_Req_Daily, EquipModels.PM_Req_Weekly,
+                    EquipModels.PM_Req_Monthly, EquipModels.PM_Req_Quarterly, EquipModels.PM_Req_Annual, EquipByLab.equipStatus)
+                .join(EquipModels, EquipByLab.Model == EquipModels.Model)
+                .filter(~EquipByLab.equipStatus.in_(['Retired Offsite', 'Retired onsite']), EquipByLab.LabID == labid).all()
+            )
+            results_list = [dict(zip(
+                ['Serial_Num', 'Model', 'Manufacturer', 'Equipment_Class', 'LabID', 'Created_Date',
+                'PM_Req_Daily', 'PM_Req_Weekly', 'PM_Req_Monthly', 'PM_Req_Quarterly', 'PM_Req_Annual', 'equipStatus'
+                ], row)) for row in get_equipment_active_lab]
+        case (True, False, False, True, 'False'):
+            get_equipment_active_class = (
+                db.session.query(EquipByLab.Serial_Num, EquipByLab.Model, EquipModels.Manufacturer, EquipModels.Equipment_Class,
+                    EquipByLab.LabID, EquipByLab.Created_Date, EquipModels.PM_Req_Daily, EquipModels.PM_Req_Weekly,
+                    EquipModels.PM_Req_Monthly, EquipModels.PM_Req_Quarterly, EquipModels.PM_Req_Annual, EquipByLab.equipStatus)
+                .join(EquipModels, EquipByLab.Model == EquipModels.Model)
+                .filter(~EquipByLab.equipStatus.in_(['Retired Offsite', 'Retired onsite']), EquipModels.Equipment_Class == equipment_class).all()
+            )
+            results_list = [dict(zip(
+                ['Serial_Num', 'Model', 'Manufacturer', 'Equipment_Class', 'LabID', 'Created_Date',
+                'PM_Req_Daily', 'PM_Req_Weekly', 'PM_Req_Monthly', 'PM_Req_Quarterly', 'PM_Req_Annual', 'equipStatus'
+                ], row)) for row in get_equipment_active_class]
+        case (True, False, False, False, 'False'):
+            get_equipment_active = (
+                db.session.query(EquipByLab.Serial_Num, EquipByLab.Model, EquipModels.Manufacturer, EquipModels.Equipment_Class,
+                    EquipByLab.LabID, EquipByLab.Created_Date, EquipModels.PM_Req_Daily, EquipModels.PM_Req_Weekly,
+                    EquipModels.PM_Req_Monthly, EquipModels.PM_Req_Quarterly, EquipModels.PM_Req_Annual, EquipByLab.equipStatus)
+                .join(EquipModels, EquipByLab.Model == EquipModels.Model)
+                .filter(~EquipByLab.equipStatus.in_(['Retired Offsite', 'Retired onsite'])).all()
+            )
+            results_list = [dict(zip(
+                ['Serial_Num', 'Model', 'Manufacturer', 'Equipment_Class', 'LabID', 'Created_Date',
+                'PM_Req_Daily', 'PM_Req_Weekly', 'PM_Req_Monthly', 'PM_Req_Quarterly', 'PM_Req_Annual', 'equipStatus'
+                ], row)) for row in get_equipment_active]
+        case (True, False, True, True, 'True') | (False, True, True, True, 'True'):
+            get_equipment_inactive_labclass = (
+                db.session.query(EquipByLab.Serial_Num, EquipByLab.Model, EquipModels.Manufacturer, EquipModels.Equipment_Class,
+                    EquipByLab.LabID, EquipByLab.Created_Date, EquipModels.PM_Req_Daily, EquipModels.PM_Req_Weekly,
+                    EquipModels.PM_Req_Monthly, EquipModels.PM_Req_Quarterly, EquipModels.PM_Req_Annual, EquipByLab.equipStatus)
+                .join(EquipModels, EquipByLab.Model == EquipModels.Model)
+                .filter(EquipByLab.equipStatus.in_(['Retired Offsite', 'Retired onsite']), EquipModels.Equipment_Class == equipment_class, EquipByLab.LabID == labid).all()
+            )
+            results_list = [dict(zip(
+                ['Serial_Num', 'Model', 'Manufacturer', 'Equipment_Class', 'LabID', 'Created_Date',
+                'PM_Req_Daily', 'PM_Req_Weekly', 'PM_Req_Monthly', 'PM_Req_Quarterly', 'PM_Req_Annual', 'equipStatus'
+                ], row)) for row in get_equipment_inactive_labclass]
+        case (True, False, True, False, 'True') | (False, True, True, False, 'True'):
+            get_equipment_inactive_lab = (
+                db.session.query(EquipByLab.Serial_Num, EquipByLab.Model, EquipModels.Manufacturer, EquipModels.Equipment_Class,
+                    EquipByLab.LabID, EquipByLab.Created_Date, EquipModels.PM_Req_Daily, EquipModels.PM_Req_Weekly,
+                    EquipModels.PM_Req_Monthly, EquipModels.PM_Req_Quarterly, EquipModels.PM_Req_Annual, EquipByLab.equipStatus)
+                .join(EquipModels, EquipByLab.Model == EquipModels.Model)
+                .filter(EquipByLab.equipStatus.in_(['Retired Offsite', 'Retired onsite']), EquipByLab.LabID == labid).all()
+            )
+            results_list = [dict(zip(
+                ['Serial_Num', 'Model', 'Manufacturer', 'Equipment_Class', 'LabID', 'Created_Date',
+                'PM_Req_Daily', 'PM_Req_Weekly', 'PM_Req_Monthly', 'PM_Req_Quarterly', 'PM_Req_Annual', 'equipStatus'
+                ], row)) for row in get_equipment_inactive_lab]
+        case (True, False, False, True, 'True'):
+            get_equipment_inactive_class = (
+                db.session.query(EquipByLab.Serial_Num, EquipByLab.Model, EquipModels.Manufacturer, EquipModels.Equipment_Class,
+                    EquipByLab.LabID, EquipByLab.Created_Date, EquipModels.PM_Req_Daily, EquipModels.PM_Req_Weekly,
+                    EquipModels.PM_Req_Monthly, EquipModels.PM_Req_Quarterly, EquipModels.PM_Req_Annual, EquipByLab.equipStatus)
+                .join(EquipModels, EquipByLab.Model == EquipModels.Model)
+                .filter(EquipByLab.equipStatus.in_(['Retired Offsite', 'Retired onsite']), EquipModels.Equipment_Class == equipment_class).all()
+            )
+            results_list = [dict(zip(
+                ['Serial_Num', 'Model', 'Manufacturer', 'Equipment_Class', 'LabID', 'Created_Date',
+                'PM_Req_Daily', 'PM_Req_Weekly', 'PM_Req_Monthly', 'PM_Req_Quarterly', 'PM_Req_Annual', 'equipStatus'
+                ], row)) for row in get_equipment_inactive_class]
+        case (True, False, False, False, 'True'):
+            get_equipment_inactve = (
+                db.session.query(EquipByLab.Serial_Num, EquipByLab.Model, EquipModels.Manufacturer, EquipModels.Equipment_Class,
+                    EquipByLab.LabID, EquipByLab.Created_Date, EquipModels.PM_Req_Daily, EquipModels.PM_Req_Weekly,
+                    EquipModels.PM_Req_Monthly, EquipModels.PM_Req_Quarterly, EquipModels.PM_Req_Annual, EquipByLab.equipStatus)
+                .join(EquipModels, EquipByLab.Model == EquipModels.Model)
+                .filter(EquipByLab.equipStatus.in_(['Retired Offsite', 'Retired onsite'])).all()
+            )
+            results_list = [dict(zip(
+                ['Serial_Num', 'Model', 'Manufacturer', 'Equipment_Class', 'LabID', 'Created_Date',
+                'PM_Req_Daily', 'PM_Req_Weekly', 'PM_Req_Monthly', 'PM_Req_Quarterly', 'PM_Req_Annual', 'equipStatus'
+                ], row)) for row in get_equipment_inactve]
+    return {'results': results_list}
 
 @app.route('/get_models', methods = ['GET', 'POST'])
 @login_required
@@ -1006,12 +1096,6 @@ def get_models():
         results = [model.to_dict() for model in EquipModels.query.filter_by(modelActive=True).all()]
     else:
         results = [model.to_dict() for model in EquipModels.query.filter_by(modelActive=False).all()]
-    # with DatabaseConnection() as connection:
-    #     if session['disabledmodeltoggle'] == 'False':
-    #         query = 'SELECT * FROM EquipModels WHERE modelActive = 1;'
-    #     else:
-    #         query = 'SELECT * FROM EquipModels WHERE modelActive = 0'
-    #     results = execute_and_return(connection, query)
     return {'results': results}
 
 @app.route('/modify_models', methods = ['GET', 'POST'])
@@ -1027,9 +1111,9 @@ def modify_models():
     Manufacturer = data['Manufacturer']
     modelActive = data['modelActive']
     if request.form.get('new_modelActive') == 'on':
-        new_modelActive = 'true'
+        new_modelActive = True
     else:
-        new_modelActive = 'false'
+        new_modelActive = False
     new_manufacturer = request.form.get('new_manufacturer')
     Equipment_Class = data['Equipment_Class']
     new_equipmentclass = request.form.get('new_equipmentclass')
@@ -1058,243 +1142,391 @@ def modify_models():
         .filter(PM_form.Model == Model, PM_form.Frequency == 'Annual')
         .scalar()
     ) or 0
-    with DatabaseConnection() as connection:
-        cursor = connection.cursor()
-        # cursor.execute("SELECT MAX(Form_Order) FROM PM_form WHERE Model = ? AND Frequency = 'Daily'", (Model,))
-        # maxformorder_daily = cursor.fetchone()[0] or 0
-        # cursor.execute("SELECT MAX(Form_Order) FROM PM_form WHERE Model = ? AND Frequency = 'Weekly'", (Model,))
-        # maxformorder_weekly = cursor.fetchone()[0] or 0
-        # cursor.execute("SELECT MAX(Form_Order) FROM PM_form WHERE Model = ? AND Frequency = 'Monthly'", (Model,))
-        # maxformorder_monthly = cursor.fetchone()[0] or 0
-        # cursor.execute("SELECT MAX(Form_Order) FROM PM_form WHERE Model = ? AND Frequency = 'Quarterly'", (Model,))
-        # maxformorder_quarterly = cursor.fetchone()[0] or 0
-        # cursor.execute("SELECT MAX(Form_Order) FROM PM_form WHERE Model = ? AND Frequency = 'Annual'", (Model,))
-        # maxformorder_annual = cursor.fetchone()[0] or 0
-        PM_Req_Daily = data['PM_Req_Daily']
-        if request.form.get('pmreq-daily') == 'on':
-            new_pmreqdaily = 'true'
-        else:
-            new_pmreqdaily = 'false'
-        PM_Req_Weekly = data['PM_Req_Weekly']
-        if request.form.get('pmreq-weekly') == 'on':
-            new_pmreqweekly = 'true'
-        else:
-            new_pmreqweekly = 'false'
-        PM_Req_Monthly = data['PM_Req_Monthly']
-        if request.form.get('pmreq-monthly') == 'on':
-            new_pmreqmonthly = 'true'
-        else:
-            new_pmreqmonthly = 'false'
-        PM_Req_Quarterly = data['PM_Req_Quarterly']
-        if request.form.get('pmreq-quarterly') == 'on':
-            new_pmreqquarterly = 'true'
-        else:
-            new_pmreqquarterly = 'false'
-        PM_Req_Annual = data['PM_Req_Annual']
-        if request.form.get('pmreq-annual') == 'on':
-            new_pmreqannual = 'true'
-        else:
-            new_pmreqannual = 'false'
-        dailytasks = [
-            tuple(getattr(row, col.name) for col in PM_form.__table__.columns)
-            for row in PM_form.query.filter_by(Model=Model, Frequency='Daily').all()
-        ]
-        weeklytasks = [
-            tuple(getattr(row, col.name) for col in PM_form.__table__.columns)
-            for row in PM_form.query.filter_by(Model=Model, Frequency='Weekly').all()
-        ]
-        monthlytasks = [
-            tuple(getattr(row, col.name) for col in PM_form.__table__.columns)
-            for row in PM_form.query.filter_by(Model=Model, Frequency='Monthly').all()
-        ]
-        quarterlytasks = [
-            tuple(getattr(row, col.name) for col in PM_form.__table__.columns)
-            for row in PM_form.query.filter_by(Model=Model, Frequency='Quarterly').all()
-        ]
-        annualtasks = [
-            tuple(getattr(row, col.name) for col in PM_form.__table__.columns)
-            for row in PM_form.query.filter_by(Model=Model, Frequency='Annual').all()
-        ]
-        # cursor.execute("SELECT * FROM PM_form WHERE Model = ? AND Frequency = 'Daily'", (Model,))
-        # dailytasks = cursor.fetchall()
-        # print(dailytasks)
-        # cursor.execute("SELECT * FROM PM_form WHERE Model = ? AND Frequency = 'Weekly'", (Model,))
-        # weeklytasks = cursor.fetchall()
-        # cursor.execute("SELECT * FROM PM_form WHERE Model = ? AND Frequency = 'Monthly'", (Model,))
-        # monthlytasks = cursor.fetchall()
-        # cursor.execute("SELECT * FROM PM_form WHERE Model = ? AND Frequency = 'Quarterly'", (Model,))
-        # quarterlytasks = cursor.fetchall()
-        # cursor.execute("SELECT * FROM PM_form WHERE Model = ? AND Frequency = 'Annual'", (Model,))
-        # annualtasks = cursor.fetchall()
-        if request.method == 'POST':
-            print(new_pmreqdaily)
-            print(str(PM_Req_Daily).lower())
-            print(request.form.get('pmreq-daily'))
-            if new_pmreqdaily and new_pmreqdaily != str(PM_Req_Daily).lower():
-                cursor.execute("UPDATE EquipModels SET PM_Req_Daily = ? WHERE Model = ?",(new_pmreqdaily,Model,))
-                connection.commit()
-                # audit(scope=Model, eventtype='modelModify', initiatedby=session.get('username'), field='PM_Req_Daily', oldvalue=PM_Req_Daily, newvalue=new_pmreqdaily)
-                audit(connection, 4, auditdata = {"scope": Model, "initiatedby": session.get('username'), "oldvalue": PM_Req_Daily, "newvalue": new_pmreqdaily, "field": "PM_Req_Daily"})
-            if new_pmreqweekly and new_pmreqweekly != str(PM_Req_Weekly).lower():
-                cursor.execute("UPDATE EquipModels SET PM_Req_Weekly = ? WHERE Model = ?",(new_pmreqweekly,Model,))
-                connection.commit()
-                # audit(scope=Model, eventtype='modelModify', initiatedby=session.get('username'), field='PM_Req_Weekly', oldvalue=PM_Req_Weekly, newvalue=new_pmreqweekly)
-                audit(connection, 4, auditdata = {"scope": Model, "initiatedby": session.get('username'), "oldvalue": PM_Req_Weekly, "newvalue": new_pmreqweekly, "field": "PM_Req_Weekly"})
-            if new_pmreqmonthly and new_pmreqmonthly != str(PM_Req_Monthly).lower():
-                cursor.execute("UPDATE EquipModels SET PM_Req_Monthly = ? WHERE Model = ?",(new_pmreqmonthly,Model,))
-                connection.commit()
-                # audit(scope=Model, eventtype='modelModify', initiatedby=session.get('username'), field='PM_Req_Monthly', oldvalue=PM_Req_Monthly, newvalue=new_pmreqmonthly)
-                audit(connection, 4, auditdata = {"scope": Model, "initiatedby": session.get('username'), "oldvalue": PM_Req_Monthly, "newvalue": new_pmreqmonthly, "field": "PM_Req_Monthly"})
-            if new_pmreqquarterly and new_pmreqquarterly != str(PM_Req_Quarterly).lower():
-                cursor.execute("UPDATE EquipModels SET PM_Req_Quarterly = ? WHERE Model = ?",(new_pmreqquarterly,Model,))
-                connection.commit()
-                # audit(scope=Model, eventtype='modelModify', initiatedby=session.get('username'), field='PM_Req_Quarterly', oldvalue=PM_Req_Quarterly, newvalue=new_pmreqquarterly)
-                audit(connection, 4, auditdata = {"scope": Model, "initiatedby": session.get('username'), "oldvalue": PM_Req_Quarterly, "newvalue": new_pmreqquarterly, "field": "PM_Req_Quarterly"})
-            if new_pmreqannual and new_pmreqannual != str(PM_Req_Annual).lower():
-                cursor.execute("UPDATE EquipModels SET PM_Req_Annual = ? WHERE Model = ?",(new_pmreqannual,Model,))
-                connection.commit()
-                # audit(scope=Model, eventtype='modelModify', initiatedby=session.get('username'), field='PM_Req_Annual', oldvalue=PM_Req_Annual, newvalue=new_pmreqannual)
-                audit(connection, 4, auditdata = {"scope": Model, "initiatedby": session.get('username'), "oldvalue": PM_Req_Annual, "newvalue": new_pmreqannual, "field": "PM_Req_Annual"})
-            ###Update daily tasks if changed.###
-            for i, dailytask in enumerate(dailytasks, start=1):
-                change_task = request.form.get(f"pmreq-daily-task-input-{i}")
-                Frequency = 'Daily'
-                if change_task and change_task != dailytask[4]:
-                    read_query_execute(connection, 'update_models.sql', (change_task, Model, i, Frequency))
-                if not change_task and change_task != dailytask[4]:
-                    cursor.execute("DELETE FROM PM_form WHERE Model = ? AND Frequency = 'Daily' AND Form_Order = ?",(Model,i,))
-                    connection.commit()
-                    # audit(scope=Model, eventtype='modelModify', initiatedby=session.get('username'), field='Task', oldvalue=dailytask[4])
-                    audit(connection, 11, auditdata = {"scope": Model, "initiatedby": session.get('username'), "frequency": Frequency, "task": dailytask[4]})
-            ###Add new daily tasks that were submitted.###
-            for key in request.form.keys():
-                if key.startswith('pmreq-daily-task-new-'):
-                    new_task = request.form.get(key)
-                    tasknum = key.split('-')[4]
-                    ###Ensure empty tasks are not added to database.###
-                    if new_task:
-                        read_query_execute(connection, 'create_pmform_task.sql', (Model, 'Daily', tasknum, new_task))
-                        # audit(scope=Model, eventtype='modelModify', initiatedby=session.get('username'), field='Task', oldvalue=new_task)
-                        audit(connection, 10, auditdata = {"scope": Model, "initiatedby": session.get('username'), "frequency": "Daily", "task": new_task})
-            ###Update weekly tasks if changed.###
-            for i, weeklytask in enumerate(weeklytasks, start=1):
-                change_task = request.form.get(f'pmreq-weekly-task-input-{i}')
-                Frequency = 'Weekly'
-                if change_task and change_task != weeklytask[4]:
-                    read_query_execute(connection, 'update_models.sql', (change_task, Model, i, Frequency))
-                if not change_task and change_task != weeklytask[4]:
-                    cursor.execute("DELETE FROM PM_form WHERE Model = ? AND Frequency = 'Weekly' AND Form_Order = ?",(Model,i,))
-                    connection.commit()
-                    # audit(scope=Model, eventtype='modelModify', initiatedby=session.get('username'), field='Task', oldvalue=weeklytask[4])
-                    audit(connection, 11, auditdata = {"scope": Model, "initiatedby": session.get('username'), "frequency": Frequency, "task": weeklytask[4]})
-            ###Add new weekly tasks that were submitted.###
-            for key in request.form.keys():
-                if key.startswith('pmreq-weekly-task-new-'):
-                    new_task = request.form.get(key)
-                    tasknum = key.split('-')[4]
-                    ###Ensure empty tasks are not added to database.###
-                    if new_task:
-                        read_query_execute(connection, 'create_pmform_task.sql', (Model, 'Weekly', tasknum, new_task))
-                        # audit(scope=Model, eventtype='modelModify', initiatedby=session.get('username'), field='Task', oldvalue=new_task)
-                        audit(connection, 10, auditdata = {"scope": Model, "initiatedby": session.get('username'), "frequency": "Weekly", "task": new_task})
-            ###Update monthly tasks if changed.###
-            for i, monthlytask in enumerate(monthlytasks, start=1):
-                change_task = request.form.get(f'pmreq-monthly-task-input-{i}')
-                Frequency = 'Monthly'
-                if change_task and change_task != monthlytask[4]:
-                    read_query_execute(connection, 'update_models.sql', (change_task, Model, i, Frequency))
-                if not change_task and change_task != monthlytask[4]:
-                    cursor.execute("DELETE FROM PM_form WHERE Model = ? AND Frequency = 'Monthly' AND Form_Order = ?",(Model,i,))
-                    connection.commit()
-                    # audit(scope=Model, eventtype='modelModify', initiatedby=session.get('username'), field='Task', oldvalue=monthlytask[4])
-                    audit(connection, 11, auditdata = {"scope": Model, "initiatedby": session.get('username'), "frequency": Frequency, "task": monthlytask[4]})
-            ###Add new monthly tasks that were submitted.###
-            for key in request.form.keys():
-                if key.startswith('pmreq-monthly-task-new-'):
-                    new_task = request.form.get(key)
-                    tasknum = key.split('-')[4]
-                    ###Ensure empty tasks are not added to database.###
-                    if new_task:
-                        read_query_execute(connection, 'create_pmform_task.sql', (Model, 'Monthly', tasknum, new_task))
-                        # audit(scope=Model, eventtype='modelModify', initiatedby=session.get('username'), field='Task', oldvalue=new_task)
-                        audit(connection, 10, auditdata = {"scope": Model, "initiatedby": session.get('username'), "frequency": "Monthly", "task": new_task})
-            ###Update quarterly tasks if changed.###
-            for i, quarterlytask in enumerate(quarterlytasks, start=1):
-                change_task = request.form.get(f'pmreq-quarterly-task-input-{i}')
-                Frequency = 'Quarterly'
-                if change_task and change_task != quarterlytask[4]:
-                    read_query_execute(connection, 'update_models.sql', (change_task, Model, i, Frequency))
-                if not change_task and change_task != quarterlytask[4]:
-                    cursor.execute("DELETE FROM PM_form WHERE Model = ? AND Frequency = 'Quarterly' AND Form_Order = ?",(Model,i,))
-                    connection.commit()
-                    # audit(scope=Model, eventtype='modelModify', initiatedby=session.get('username'), field='Task', oldvalue=quarterlytask[4])
-                    audit(connection, 11, auditdata = {"scope": Model, "initiatedby": session.get('username'), "frequency": Frequency, "task": quarterlytask[4]})
-            ###Add new quarterly tasks that were submitted.###
-            for key in request.form.keys():
-                if key.startswith('pmreq-quarterly-task-new-'):
-                    new_task = request.form.get(key)
-                    tasknum = key.split('-')[4]
-                    ###Ensure empty tasks are not added to database.###
-                    if new_task:
-                        read_query_execute(connection, 'create_pmform_task.sql', (Model, 'Quarterly', tasknum, new_task))
-                        # audit(scope=Model, eventtype='modelModify', initiatedby=session.get('username'), field='Task', oldvalue=new_task)
-                        audit(connection, 10, auditdata = {"scope": Model, "initiatedby": session.get('username'), "frequency": "Quarterly", "task": new_task})
-            ###Update annual tasks if changed.###
-            for i, annualtask in enumerate(annualtasks, start=1):
-                change_task = request.form.get(f'pmreq-annual-task-input-{i}')
-                Frequency = 'Annual'
-                if change_task and change_task != annualtask[4]:
-                    read_query_execute(connection, 'update_models.sql', (change_task, Model, i, Frequency))
-                if not change_task and change_task != annualtask[4]:
-                    cursor.execute("DELETE FROM PM_form WHERE Model = ? AND Frequency = 'Annual' AND Form_Order = ?",(Model,i,))
-                    connection.commit()
-                    # audit(scope=Model, eventtype='modelModify', initiatedby=session.get('username'), field='Task', oldvalue=annualtask[4])
-                    audit(connection, 11, auditdata = {"scope": Model, "initiatedby": session.get('username'), "frequency": Frequency, "task": annualtask[4]})
-            ###Add new annual tasks that were submitted.###
-            for key in request.form.keys():
-                if key.startswith('pmreq-annual-task-new-'):
-                    new_task = request.form.get(key)
-                    tasknum = key.split('-')[4]
-                    ###Ensure empty tasks are not added to database.###
-                    if new_task:
-                        read_query_execute(connection, 'create_pmform_task.sql', (Model, 'Annual', tasknum, new_task))
-                        # audit(scope=Model, eventtype='modelModify', initiatedby=session.get('username'), field='Task', oldvalue=new_task)
-                        audit(connection, 10, auditdata = {"scope": Model, "initiatedby": session.get('username'), "frequency": "Annual", "task": new_task})
-            ###Update Manufacturer if changed.###
-            if new_manufacturer and new_manufacturer != Manufacturer:
-                cursor.execute("UPDATE EquipModels SET Manufacturer = ? WHERE Model = ?",(new_manufacturer,Model,))
-                connection.commit()
-                # audit(scope=Model, eventtype='modelModify', initiatedby=session.get('username'), field='Manufacturer', oldvalue=Manufacturer, newvalue=new_manufacturer)
-                audit(connection, 4, auditdata = {"scope": Model, "initiatedby": session.get('username'), "oldvalue": Manufacturer, "newvalue": new_manufacturer, "field": "Manufacturer"})
-            ###Update Class if changed.###
-            if new_equipmentclass and new_equipmentclass != Equipment_Class:
-                cursor.execute("UPDATE EquipModels SET Equipment_Class = ? WHERE Model = ?", (new_equipmentclass,Model,))
-                connection.commit()
-                # audit(scope=Model, eventtype='modelModify', initiatedby=session.get('username'), field='Equipment_Class', oldvalue=Equipment_Class, newvalue=new_equipmentclass)
-                audit(connection, 4, auditdata = {"scope": Model, "initiatedby": session.get('username'), "oldvalue": Equipment_Class, "newvalue": new_equipmentclass, "field": "Equipment_Class"})
-            if new_modelActive and new_modelActive != str(modelActive).lower():
-                cursor.execute("UPDATE EquipModels SET modelActive = ? WHERE Model = ?", (new_modelActive,Model,))
-                connection.commit()
-                # audit(scope=Model, eventtype='modelModify', initiatedby=session.get('username'), field='modelActive', oldvalue=modelActive, newvalue=new_modelActive)
-                audit(connection, 4, auditdata = {"scope": Model, "initiatedby": session.get('username'), "oldvalue": modelActive, "newvalue": new_modelActive, "field": "modelActive"})
-            ###Update Model if changed.###
-            if new_model and new_model != Model:
-                cursor.execute("UPDATE EquipModels SET Model = ? WHERE Model = ?",(new_model,Model,))
-                connection.commit()
-                # audit(scope=Model, eventtype='modelModify', initiatedby=session.get('username'), field='Model', oldvalue=Model, newvalue=new_model)
-                audit(connection, 4, auditdata = {"scope": Model, "initiatedby": session.get('username'), "oldvalue": Model, "newvalue": new_model, "field": "Model"})
-            ###Update session data so new values display on submit.###
-            # data['Model'] = new_model
-            # data['Manufacturer'] = new_manufacturer
-            # data['Equipment_Class'] = new_equipmentclass
-            # data['modelActive'] = new_modelActive
-            # data['PM_Req_Daily'] = new_pmreqdaily
-            # data['PM_Req_Weekly'] = new_pmreqweekly
-            # data['PM_Req_Monthly'] = new_pmreqmonthly
-            # data['PM_Req_Quarterly'] = new_pmreqquarterly
-            # data['PM_Req_Annual'] = new_pmreqannual
-            # session[token] = data
-            return redirect(url_for('models', token=token))
+        
+    PM_Req_Daily = data['PM_Req_Daily']
+    if request.form.get('pmreq-daily') == 'on':
+        new_pmreqdaily = True
+    else:
+        new_pmreqdaily = False
+    PM_Req_Weekly = data['PM_Req_Weekly']
+    if request.form.get('pmreq-weekly') == 'on':
+        new_pmreqweekly = True
+    else:
+        new_pmreqweekly = False
+    PM_Req_Monthly = data['PM_Req_Monthly']
+    if request.form.get('pmreq-monthly') == 'on':
+        new_pmreqmonthly = True
+    else:
+        new_pmreqmonthly = False
+    PM_Req_Quarterly = data['PM_Req_Quarterly']
+    if request.form.get('pmreq-quarterly') == 'on':
+        new_pmreqquarterly = True
+    else:
+        new_pmreqquarterly = False
+    PM_Req_Annual = data['PM_Req_Annual']
+    if request.form.get('pmreq-annual') == 'on':
+        new_pmreqannual = True
+    else:
+        new_pmreqannual = False
+    dailytasks = [
+        tuple(getattr(row, col.name) for col in PM_form.__table__.columns)
+        for row in PM_form.query.filter_by(Model=Model, Frequency='Daily').all()
+    ]
+    weeklytasks = [
+        tuple(getattr(row, col.name) for col in PM_form.__table__.columns)
+        for row in PM_form.query.filter_by(Model=Model, Frequency='Weekly').all()
+    ]
+    monthlytasks = [
+        tuple(getattr(row, col.name) for col in PM_form.__table__.columns)
+        for row in PM_form.query.filter_by(Model=Model, Frequency='Monthly').all()
+    ]
+    quarterlytasks = [
+        tuple(getattr(row, col.name) for col in PM_form.__table__.columns)
+        for row in PM_form.query.filter_by(Model=Model, Frequency='Quarterly').all()
+    ]
+    annualtasks = [
+        tuple(getattr(row, col.name) for col in PM_form.__table__.columns)
+        for row in PM_form.query.filter_by(Model=Model, Frequency='Annual').all()
+    ]
+
+    if request.method == 'POST':
+        if bool(new_pmreqdaily) != bool(PM_Req_Daily):
+            update_models = EquipModels.query.filter_by(Model=Model).first()
+            if update_models:
+                update_models.PM_Req_Daily = new_pmreqdaily
+                db.session.commit()
+            create_audit = emsAudit(
+                Scope=Model,
+                EventType='modelModify',
+                InitiatedBy=session.get('username'),
+                EventDetails=f"PM_Req_Daily changed from {PM_Req_Daily} to {new_pmreqdaily}."
+            )
+            db.session.add(create_audit)
+            db.session.commit()
+        if bool(new_pmreqweekly) != bool(PM_Req_Weekly):
+            update_models = EquipModels.query.filter_by(Model=Model).first()
+            if update_models:
+                update_models.PM_Req_Weekly = new_pmreqweekly
+                db.session.commit()
+            create_audit = emsAudit(
+                Scope=Model,
+                EventType='modelModify',
+                InitiatedBy=session.get('username'),
+                EventDetails=f"PM_Req_Weekly changed from {PM_Req_Weekly} to {new_pmreqweekly}."
+            )
+            db.session.add(create_audit)
+            db.session.commit()
+        if bool(new_pmreqmonthly) != bool(PM_Req_Monthly):
+            update_models = EquipModels.query.filter_by(Model=Model).first()
+            if update_models:
+                update_models.PM_Req_Monthly = new_pmreqmonthly
+                db.session.commit()
+            create_audit = emsAudit(
+                Scope=Model,
+                EventType='modelModify',
+                InitiatedBy=session.get('username'),
+                EventDetails=f"PM_Req_Monthly changed from {PM_Req_Monthly} to {new_pmreqmonthly}."
+            )
+            db.session.add(create_audit)
+            db.session.commit()
+        if bool(new_pmreqquarterly) != bool(PM_Req_Quarterly):
+            update_models = EquipModels.query.filter_by(Model=Model).first()
+            if update_models:
+                update_models.PM_Req_Quarterly = new_pmreqquarterly
+                db.session.commit()
+            create_audit = emsAudit(
+                Scope=Model,
+                EventType='modelModify',
+                InitiatedBy=session.get('username'),
+                EventDetails=f"PM_Req_Quarterly changed from {PM_Req_Quarterly} to {new_pmreqquarterly}."
+            )
+            db.session.add(create_audit)
+            db.session.commit()
+        if bool(new_pmreqannual) != bool(PM_Req_Annual):
+            update_models = EquipModels.query.filter_by(Model=Model).first()
+            if update_models:
+                update_models.PM_Req_Annual = new_pmreqannual
+                db.session.commit()
+            create_audit = emsAudit(
+                Scope=Model,
+                EventType='modelModify',
+                InitiatedBy=session.get('username'),
+                EventDetails=f"PM_Req_Annual changed from {PM_Req_Annual} to {new_pmreqannual}."
+            )
+            db.session.add(create_audit)
+            db.session.commit()
+
+        ###Update daily tasks if changed.###
+        for i, dailytask in enumerate(dailytasks, start=1):
+            change_task = request.form.get(f"pmreq-daily-task-input-{i}")
+            Frequency = 'Daily'
+            if change_task and change_task != dailytask[4]:
+                update_models = PM_form.query.filter_by(Model=Model, Form_Order=i, Frequency=Frequency).first()
+                if update_models:
+                    update_models.Task = change_task
+                    db.session.commit()
+            if not change_task and change_task != dailytask[4]:
+                PM_form.query.filter_by(Model=Model, Frequency='Daily', Form_Order=i).delete()
+                db.session.commit()
+                create_audit = emsAudit(
+                    Scope=Model,
+                    EventType='modelModify',
+                    InitiatedBy=session.get('username'),
+                    EventDetails=f"Daily task deleted: {dailytask[4]}."
+                )
+                db.session.add(create_audit)
+                db.session.commit()
+        ###Add new daily tasks that were submitted.###
+        for key in request.form.keys():
+            if key.startswith('pmreq-daily-task-new-'):
+                new_task = request.form.get(key)
+                tasknum = key.split('-')[4]
+                ###Ensure empty tasks are not added to database.###
+                if new_task:
+                    create_task = PM_form(
+                        Model=Model,
+                        Frequency='Daily',
+                        Form_Order=tasknum,
+                        Task=new_task
+                    )
+                    db.session.add(create_task)
+                    db.session.commit()
+                    create_audit = emsAudit(
+                        Scope=Model,
+                        EventType='modelModify',
+                        InitiatedBy=session.get('username'),
+                        EventDetails=f"New Daily task created: {new_task}."
+                    )
+                    db.session.add(create_audit)
+                    db.session.commit()
+        ###Update weekly tasks if changed.###
+        for i, weeklytask in enumerate(weeklytasks, start=1):
+            change_task = request.form.get(f'pmreq-weekly-task-input-{i}')
+            Frequency = 'Weekly'
+            if change_task and change_task != weeklytask[4]:
+                update_models = PM_form.query.filter_by(Model=Model, Form_Order=i, Frequency=Frequency).first()
+                if update_models:
+                    update_models.Task = change_task
+                    db.session.commit()
+            if not change_task and change_task != weeklytask[4]:
+                PM_form.query.filter_by(Model=Model, Frequency='Weekly', Form_Order=i).delete()
+                db.session.commit()
+                create_audit = emsAudit(
+                    Scope=Model,
+                    EventType='modelModify',
+                    InitiatedBy=session.get('username'),
+                    EventDetails=f"Weekly task deleted: {dailytask[4]}."
+                )
+                db.session.add(create_audit)
+                db.session.commit()
+        ###Add new weekly tasks that were submitted.###
+        for key in request.form.keys():
+            if key.startswith('pmreq-weekly-task-new-'):
+                new_task = request.form.get(key)
+                tasknum = key.split('-')[4]
+                ###Ensure empty tasks are not added to database.###
+                if new_task:
+                    create_task = PM_form(
+                        Model=Model,
+                        Frequency='Weekly',
+                        Form_Order=tasknum,
+                        Task=new_task
+                    )
+                    db.session.add(create_task)
+                    db.session.commit()
+                    create_audit = emsAudit(
+                        Scope=Model,
+                        EventType='modelModify',
+                        InitiatedBy=session.get('username'),
+                        EventDetails=f"New Weekly task created: {new_task}."
+                    )
+                    db.session.add(create_audit)
+                    db.session.commit()
+        ###Update monthly tasks if changed.###
+        for i, monthlytask in enumerate(monthlytasks, start=1):
+            change_task = request.form.get(f'pmreq-monthly-task-input-{i}')
+            Frequency = 'Monthly'
+            if change_task and change_task != monthlytask[4]:
+                update_models = PM_form.query.filter_by(Model=Model, Form_Order=i, Frequency=Frequency).first()
+                if update_models:
+                    update_models.Task = change_task
+                    db.session.commit()
+            if not change_task and change_task != monthlytask[4]:
+                PM_form.query.filter_by(Model=Model, Frequency='Monthly', Form_Order=i).delete()
+                db.session.commit()
+                create_audit = emsAudit(
+                    Scope=Model,
+                    EventType='modelModify',
+                    InitiatedBy=session.get('username'),
+                    EventDetails=f"Monthly task deleted: {dailytask[4]}."
+                )
+                db.session.add(create_audit)
+                db.session.commit()
+        ###Add new monthly tasks that were submitted.###
+        for key in request.form.keys():
+            if key.startswith('pmreq-monthly-task-new-'):
+                new_task = request.form.get(key)
+                tasknum = key.split('-')[4]
+                ###Ensure empty tasks are not added to database.###
+                if new_task:
+                    create_task = PM_form(
+                        Model=Model,
+                        Frequency='Monthly',
+                        Form_Order=tasknum,
+                        Task=new_task
+                    )
+                    db.session.add(create_task)
+                    db.session.commit()
+                    create_audit = emsAudit(
+                        Scope=Model,
+                        EventType='modelModify',
+                        InitiatedBy=session.get('username'),
+                        EventDetails=f"New Monthly task created: {new_task}."
+                    )
+                    db.session.add(create_audit)
+                    db.session.commit()
+        ###Update quarterly tasks if changed.###
+        for i, quarterlytask in enumerate(quarterlytasks, start=1):
+            change_task = request.form.get(f'pmreq-quarterly-task-input-{i}')
+            Frequency = 'Quarterly'
+            if change_task and change_task != quarterlytask[4]:
+                update_models = PM_form.query.filter_by(Model=Model, Form_Order=i, Frequency=Frequency).first()
+                if update_models:
+                    update_models.Task = change_task
+                    db.session.commit()
+            if not change_task and change_task != quarterlytask[4]:
+                PM_form.query.filter_by(Model=Model, Frequency='Quarterly', Form_Order=i).delete()
+                db.session.commit()
+                create_audit = emsAudit(
+                    Scope=Model,
+                    EventType='modelModify',
+                    InitiatedBy=session.get('username'),
+                    EventDetails=f"Quarterly task deleted: {dailytask[4]}."
+                )
+                db.session.add(create_audit)
+                db.session.commit()
+        ###Add new quarterly tasks that were submitted.###
+        for key in request.form.keys():
+            if key.startswith('pmreq-quarterly-task-new-'):
+                new_task = request.form.get(key)
+                tasknum = key.split('-')[4]
+                ###Ensure empty tasks are not added to database.###
+                if new_task:
+                    create_task = PM_form(
+                        Model=Model,
+                        Frequency='Quarterly',
+                        Form_Order=tasknum,
+                        Task=new_task
+                    )
+                    db.session.add(create_task)
+                    db.session.commit()
+                    create_audit = emsAudit(
+                        Scope=Model,
+                        EventType='modelModify',
+                        InitiatedBy=session.get('username'),
+                        EventDetails=f"New Quarterly task created: {new_task}."
+                    )
+                    db.session.add(create_audit)
+                    db.session.commit()
+        ###Update annual tasks if changed.###
+        for i, annualtask in enumerate(annualtasks, start=1):
+            change_task = request.form.get(f'pmreq-annual-task-input-{i}')
+            Frequency = 'Annual'
+            if change_task and change_task != annualtask[4]:
+                update_models = PM_form.query.filter_by(Model=Model, Form_Order=i, Frequency=Frequency).first()
+                if update_models:
+                    update_models.Task = change_task
+                    db.session.commit()
+            if not change_task and change_task != annualtask[4]:
+                PM_form.query.filter_by(Model=Model, Frequency='Annual', Form_Order=i).delete()
+                db.session.commit()
+                create_audit = emsAudit(
+                    Scope=Model,
+                    EventType='modelModify',
+                    InitiatedBy=session.get('username'),
+                    EventDetails=f"Annual task deleted: {dailytask[4]}."
+                )
+                db.session.add(create_audit)
+                db.session.commit()
+        ###Add new annual tasks that were submitted.###
+        for key in request.form.keys():
+            if key.startswith('pmreq-annual-task-new-'):
+                new_task = request.form.get(key)
+                tasknum = key.split('-')[4]
+                ###Ensure empty tasks are not added to database.###
+                if new_task:
+                    create_task = PM_form(
+                        Model=Model,
+                        Frequency='Annual',
+                        Form_Order=tasknum,
+                        Task=new_task
+                    )
+                    db.session.add(create_task)
+                    db.session.commit()
+                    create_audit = emsAudit(
+                        Scope=Model,
+                        EventType='modelModify',
+                        InitiatedBy=session.get('username'),
+                        EventDetails=f"New Annual task created: {new_task}."
+                    )
+                    db.session.add(create_audit)
+                    db.session.commit()
+        ###Update Manufacturer if changed.###
+        if new_manufacturer and new_manufacturer != Manufacturer:
+            update_models = EquipModels.query.filter_by(Model=Model).first()
+            if update_models:
+                update_models.Manufacturer = new_manufacturer
+                db.session.commit()
+            create_audit = emsAudit(
+                Scope=Model,
+                EventType='modelModify',
+                InitiatedBy=session.get('username'),
+                EventDetails=f"Manufacturer changed from {Manufacturer} to {new_manufacturer}."
+            )
+            db.session.add(create_audit)
+            db.session.commit()
+        ###Update Class if changed.###
+        if new_equipmentclass and new_equipmentclass != Equipment_Class:
+            update_models = EquipModels.query.filter_by(Model=Model).first()
+            if update_models:
+                update_models.Equipment_Class = new_equipmentclass
+                db.session.commit()
+            create_audit = emsAudit(
+                Scope=Model,
+                EventType='modelModify',
+                InitiatedBy=session.get('username'),
+                EventDetails=f"Equipment_Class changed from {Equipment_Class} to {new_equipmentclass}."
+            )
+            db.session.add(create_audit)
+            db.session.commit()
+        if bool(new_modelActive) != bool(modelActive):
+            update_models = EquipModels.query.filter_by(Model=Model).first()
+            if update_models:
+                update_models.modelActive = new_modelActive
+                db.session.commit()
+            create_audit = emsAudit(
+                Scope=Model,
+                EventType='modelModify',
+                InitiatedBy=session.get('username'),
+                EventDetails=f"modelActive changed from {modelActive} to {new_modelActive}."
+            )
+            db.session.add(create_audit)
+            db.session.commit()
+        ###Update Model if changed.###
+        if new_model and new_model != Model:
+            update_models = EquipModels.query.filter_by(Model=Model).first()
+            if update_models:
+                update_models.Model = new_model
+                db.session.commit()
+            create_audit = emsAudit(
+                Scope=Model,
+                EventType='modelModify',
+                InitiatedBy=session.get('username'),
+                EventDetails=f"Model changed from {Model} to {new_model}."
+            )
+            db.session.add(create_audit)
+            db.session.commit()
+        return redirect(url_for('models', token=token))
     return render_template('modify_models.html', classlist=session.get('classlist'), 
                            dailytasks=dailytasks, weeklytasks=weeklytasks, 
                            monthlytasks=monthlytasks, quarterlytasks=quarterlytasks, 
