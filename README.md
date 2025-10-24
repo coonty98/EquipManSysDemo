@@ -1,13 +1,3 @@
----
-title: Equipment Management System
-description: 
-published: true
-date: 2025-10-23T23:39:57.601Z
-tags: 
-editor: markdown
-dateCreated: 2025-10-20T02:50:41.477Z
----
-
 # Introduction
 
 The purpose of this project is to replace the current equipment preventive maintenance process and asset tracking. Currently, a different excel spreadsheet is used for every machine in the company. These are used to document the daily, weekly, and monthly maintenance being performed. There is also a separate asset log to track equipment at each location. I wanted to create something that was unified and made it easier to document preventive maintenance. With this app, users can easily see tasks that have not been completed. This can also be used for reporting and will allow necessary reports to be generated for the compliance team and external audits. Power BI can be used for even deeper reporting and visualizations in future developments.
