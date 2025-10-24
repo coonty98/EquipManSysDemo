@@ -802,7 +802,7 @@ def new_user():
             username=new_username,
             password_hash=password_hash,
             PrimaryLab=new_primarylab,
-            Firstname=new_firstname,
+            FirstName=new_firstname,
             LastName=new_lastname,
             userStatus='Active',
             require_pwd_chg=1,
