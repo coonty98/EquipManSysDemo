@@ -1,14 +1,18 @@
 services:
-  emsdemo:
-    image: emsimage
-    container_name: emsdemo
+  emsdemolocal:
+    # The build command builds the image using a dockerfile in the current
+    # directory. The image command tags the image. Alternatively, 'build' can
+    # be omitted which will require the image to be built separately.
+    build: .
+    image: emsimagelocal
+    container_name: emsdemolocal
     depends_on:
-      emsdemoDB:
+      emsdemoDBmain:
         condition: service_healthy
-    # ports:
-    #   - "5050:5050"
+    ports:
+      - "5050:5050"
     environment:
-      MYSQL_HOST: emsdemoDB
+      MYSQL_HOST: emsdemoDBmain
       FLASK_ENV: development
       MYSQL_DATABASE_FILE: /run/secrets/mysql_database
       MYSQL_USER_FILE: /run/secrets/mysql_user
@@ -27,17 +31,17 @@ services:
       - oauth_client_secret
       - pwd_chg_days
       - sessionTimeout_sec
-    networks:
-      - nginx_internal
+    # networks:
+    #   - nginx_internal
 
-  emsdemoDB:
+  emsdemoDBmain:
     image: mysql:8.0
     healthcheck:
       test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
       interval: 10s
       timeout: 5s
       retries: 5
-    container_name: emsdemoDB
+    container_name: emsdemoDBmain
     environment:
       MYSQL_ROOT_PASSWORD_FILE: /run/secrets/mysql_root_password
       MYSQL_DATABASE_FILE: /run/secrets/mysql_database
@@ -49,12 +53,13 @@ services:
       - mysql_user
       - mysql_password
     volumes:
+      - ./init-scripts:/docker-entrypoint-initdb.d
       - ./data:/var/lib/mysql
-    # ports:
-    #   - "3306:3306"
+    ports:
+      - "3306:3306"
     restart: always
-    networks:
-      - nginx_internal
+    # networks:
+    #   - nginx_internal
 
 secrets:
   mysql_root_password:
@@ -79,6 +84,6 @@ secrets:
 volumes:
   data:
 
-networks:
-  nginx_internal:
-    external: true
+# networks:
+#   nginx_internal:
+#     external: true

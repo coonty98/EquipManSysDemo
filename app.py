@@ -1,5 +1,5 @@
 import uuid, time, requests, os
-from logic import (read_secret, login_required, require_access_levels, is_valid_password)
+from logic import (connect_with_retry, read_secret, login_required, require_access_levels, is_valid_password)
 from flask import Flask, render_template, request, session, redirect, url_for, abort, jsonify
 from flask_cors import CORS
 from flask_wtf.csrf import CSRFProtect
@@ -8,6 +8,8 @@ from datetime import date, datetime, timedelta
 from authlib.integrations.flask_client import OAuth
 from models import db, Settings, EquipClass, EquipModels, EquipStatus, UserStatus, Access, Labs, PM_form, emsAudit, EquipByLab, PM_Response, Records, Users, UsersLabAccess
 from sqlalchemy import func
+from sqlalchemy.exc import OperationalError
+
 
 app = Flask(__name__)
 
@@ -55,11 +57,33 @@ else:
     app.config['SQLALCHEMY_DATABASE_URI'] = (
         f"mysql+pymysql://{db_username}:{db_password}@{db_server}:3306/{db_name}?charset=utf8mb4"
     )
+    app.config.update(
+        SESSION_COOKIE_SECURE=False,
+        SESSION_COOKIE_HTTPONLY=True,
+        SESSION_COOKIE_SAMESITE='Lax',
+    )
 
 
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
-
 db.init_app(app)
+
+def connect_with_retry(engine, retries=5, delay=5):
+    for i in range(retries):
+        try:
+            connection = engine.connect()
+            connection.close()
+            print("Database connection successful.")
+            return True
+        except OperationalError:
+            print(f"Database connection failed. Retrying in {delay} seconds...")
+            time.sleep(delay)
+    raise Exception("Could not connect to the database after multiple retries.")
+
+# Ensures database connection is established.
+with app.app_context():
+    connect_with_retry(db.engine)
+
+
 
 with app.app_context():
     settings = Settings.query.first()
